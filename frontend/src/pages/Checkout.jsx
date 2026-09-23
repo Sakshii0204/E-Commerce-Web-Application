@@ -10,18 +10,17 @@ import { ErrorMessage } from '../components/common/ErrorMessage';
 
 export const Checkout = () => {
   const navigate = useNavigate();
-  const { cartItems, subtotal, shipping, tax, total, clearCart } = useCart();
+  const { cartItems, subtotal, shipping, total, fetchCart } = useCart();
   const { placeOrder } = useOrders();
   const { user } = useAuth();
 
   const [formData, setFormData] = useState({
     fullName: user?.name || '',
-    email: user?.email || '',
-    phone: user?.phone || '',
+    phone: '',
     address: '',
     city: '',
     state: '',
-    postalCode: ''
+    postalCode: '',
   });
 
   const [errors, setErrors] = useState({});
@@ -31,29 +30,33 @@ export const Checkout = () => {
   const validate = () => {
     const newErrors = {};
 
-    if (!formData.fullName.trim()) newErrors.fullName = 'Full name is required';
-    if (!formData.email.trim()) {
-      newErrors.email = 'Email is required';
-    } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
-      newErrors.email = 'Enter a valid email address';
+    if (!formData.fullName.trim() || formData.fullName.trim().length < 2) {
+      newErrors.fullName = 'Full name is required (min 2 characters)';
     }
 
-    if (!formData.phone.trim()) {
-      newErrors.phone = 'Phone number is required';
-    } else if (formData.phone.replace(/\D/g, '').length < 8) {
-      newErrors.phone = 'Enter a valid contact number';
+    const digitsOnly = formData.phone.replace(/\D/g, '');
+    if (!formData.phone.trim() || digitsOnly.length < 8) {
+      newErrors.phone = 'Enter a valid contact number (at least 8 digits)';
     }
 
-    if (!formData.address.trim()) newErrors.address = 'Street address is required';
-    if (!formData.city.trim()) newErrors.city = 'City is required';
-    if (!formData.state.trim()) newErrors.state = 'State / Region is required';
-    if (!formData.postalCode.trim()) newErrors.postalCode = 'Postal code is required';
+    if (!formData.address.trim() || formData.address.trim().length < 5) {
+      newErrors.address = 'Street address is required (min 5 characters)';
+    }
+    if (!formData.city.trim() || formData.city.trim().length < 2) {
+      newErrors.city = 'City is required';
+    }
+    if (!formData.state.trim() || formData.state.trim().length < 2) {
+      newErrors.state = 'State / Region is required';
+    }
+    if (!formData.postalCode.trim() || formData.postalCode.trim().length < 4) {
+      newErrors.postalCode = 'Valid postal code is required (min 4 characters)';
+    }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
-  const handlePlaceOrder = (e) => {
+  const handlePlaceOrder = async (e) => {
     e.preventDefault();
     setGeneralError('');
 
@@ -66,29 +69,30 @@ export const Checkout = () => {
 
     setIsLoading(true);
 
-    // Simulate order placement
-    setTimeout(() => {
-      const placed = placeOrder({
-        items: cartItems,
-        shippingAddress: formData,
-        customer: {
-          name: formData.fullName,
-          email: formData.email,
-          phone: formData.phone
+    try {
+      const order = await placeOrder({
+        shippingAddress: {
+          fullName: formData.fullName.trim(),
+          phone: formData.phone.trim(),
+          address: formData.address.trim(),
+          city: formData.city.trim(),
+          state: formData.state.trim(),
+          postalCode: formData.postalCode.trim(),
         },
-        pricing: {
-          subtotal,
-          shipping,
-          tax,
-          total
-        },
-        paymentMethod: 'Cash on Delivery'
+        paymentMethod: 'COD',
       });
 
-      clearCart();
+      // Refresh cart to show 0 items
+      await fetchCart();
+
+      navigate('/order-success', { state: { order } });
+    } catch (err) {
+      setGeneralError(err.message || 'Failed to place order. Please review your cart.');
+      // Refresh cart in case of stock / availability change
+      fetchCart();
+    } finally {
       setIsLoading(false);
-      navigate('/order-success', { state: { order: placed } });
-    }, 800);
+    }
   };
 
   if (cartItems.length === 0) {
@@ -152,7 +156,7 @@ export const Checkout = () => {
               <FormInput
                 label="Phone Number"
                 name="phone"
-                placeholder="+91 98765 43210"
+                placeholder="9876543210"
                 icon={Phone}
                 value={formData.phone}
                 onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
@@ -160,17 +164,6 @@ export const Checkout = () => {
                 required
               />
             </div>
-
-            <FormInput
-              label="Email for Order Notifications"
-              name="email"
-              type="email"
-              placeholder="receiver@example.com"
-              value={formData.email}
-              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              error={errors.email}
-              required
-            />
 
             <FormInput
               label="Street Address / Building"
@@ -234,18 +227,18 @@ export const Checkout = () => {
                 <div className="flex items-center justify-between">
                   <span className="font-bold text-sm text-slate-900">Cash on Delivery (COD)</span>
                   <span className="text-[10px] font-bold text-indigo-700 bg-indigo-100 px-2 py-0.5 rounded-full">
-                    Recommended for Phase 1
+                    Enabled
                   </span>
                 </div>
                 <p className="text-xs text-slate-600 mt-1">
-                  Pay with cash or UPI on doorstep arrival. No online transaction required for Phase 1.
+                  Pay securely with cash or UPI upon doorstep delivery. No advance online payment required.
                 </p>
               </div>
             </div>
 
             <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-500 flex items-center gap-2">
               <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
-              <span>Online Payment Gateways (Stripe/Razorpay) will be activated in Phase 4.</span>
+              <span>Verified server-side inventory reservation and authoritative price calculations.</span>
             </div>
           </div>
         </div>
@@ -259,7 +252,7 @@ export const Checkout = () => {
 
             {/* Items list preview */}
             <div className="max-h-60 overflow-y-auto space-y-3 pr-1 scrollbar-thin">
-              {cartItems.map(item => (
+              {cartItems.map((item) => (
                 <div key={item.id} className="flex items-center gap-3">
                   <img
                     src={item.image}
@@ -288,10 +281,6 @@ export const Checkout = () => {
                 <span className="font-semibold text-slate-900">
                   {shipping === 0 ? 'FREE' : `$${shipping.toFixed(2)}`}
                 </span>
-              </div>
-              <div className="flex justify-between text-slate-600">
-                <span>Estimated Tax</span>
-                <span className="font-semibold text-slate-900">${tax.toFixed(2)}</span>
               </div>
               <div className="flex justify-between items-baseline pt-3 border-t border-slate-100">
                 <span className="text-base font-bold text-slate-900">Grand Total</span>
