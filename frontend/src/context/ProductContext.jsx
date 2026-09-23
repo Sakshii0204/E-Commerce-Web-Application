@@ -1,79 +1,119 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { mockProducts } from '../data/mockProducts';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { productApi } from '../api/productApi';
 
 const ProductContext = createContext();
 
 export const ProductProvider = ({ children }) => {
-  const [products, setProducts] = useState(() => {
-    try {
-      const saved = localStorage.getItem('novamart_products');
-      return saved ? JSON.parse(saved) : mockProducts;
-    } catch {
-      return mockProducts;
-    }
+  const [products, setProducts] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [pagination, setPagination] = useState({
+    page: 1,
+    limit: 12,
+    totalProducts: 0,
+    totalPages: 1,
+    hasNextPage: false,
+    hasPreviousPage: false,
+  });
+  const [filtersMetadata, setFiltersMetadata] = useState({
+    categories: [],
+    brands: [],
+    priceRange: { min: 0, max: 2000 },
   });
 
-  useEffect(() => {
+  const fetchFiltersMetadata = useCallback(async () => {
     try {
-      localStorage.setItem('novamart_products', JSON.stringify(products));
-    } catch (e) {
-      console.warn("Storage write failed", e);
+      const res = await productApi.getProductFilters();
+      if (res?.data) {
+        setFiltersMetadata(res.data);
+      }
+    } catch (err) {
+      console.error('Failed to load filter metadata:', err);
     }
-  }, [products]);
+  }, []);
 
-  const addProduct = (newProduct) => {
-    const created = {
-      ...newProduct,
-      id: `prod-${Date.now()}`,
-      rating: 5.0,
-      reviewsCount: 1,
-      price: parseFloat(newProduct.price) || 0,
-      stock: parseInt(newProduct.stock, 10) || 0,
-      featured: Boolean(newProduct.featured),
-      isNew: true
-    };
-    setProducts(prev => [created, ...prev]);
-    return created;
-  };
-
-  const updateProduct = (id, updatedFields) => {
-    setProducts(prev =>
-      prev.map(p => {
-        if (p.id === id) {
-          return {
-            ...p,
-            ...updatedFields,
-            price: parseFloat(updatedFields.price !== undefined ? updatedFields.price : p.price),
-            stock: parseInt(updatedFields.stock !== undefined ? updatedFields.stock : p.stock, 10)
-          };
+  const fetchProducts = useCallback(async (queryParams = {}) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await productApi.getProducts(queryParams);
+      if (res?.data) {
+        setProducts(res.data);
+        if (res.pagination) {
+          setPagination(res.pagination);
         }
-        return p;
-      })
-    );
-  };
+      }
+      return res;
+    } catch (err) {
+      setError(err.message || 'Failed to load products');
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
-  const deleteProduct = (id) => {
-    setProducts(prev => prev.filter(p => p.id !== id));
-  };
+  const getProductById = useCallback(async (id) => {
+    try {
+      const res = await productApi.getProductById(id);
+      return res?.data || null;
+    } catch (err) {
+      console.error('Error fetching product by ID:', err);
+      return null;
+    }
+  }, []);
 
-  const getProductById = (id) => {
-    return products.find(p => String(p.id) === String(id));
-  };
+  const addProduct = useCallback(async (productData) => {
+    setLoading(true);
+    try {
+      const res = await productApi.createProduct(productData);
+      await fetchProducts();
+      return res?.data;
+    } finally {
+      setLoading(false);
+    }
+  }, [fetchProducts]);
 
-  const resetProducts = () => {
-    setProducts(mockProducts);
-    localStorage.removeItem('novamart_products');
-  };
+  const updateProduct = useCallback(async (id, productData) => {
+    setLoading(true);
+    try {
+      const res = await productApi.updateProduct(id, productData);
+      await fetchProducts();
+      return res?.data;
+    } finally {
+      setLoading(false);
+    }
+  }, [fetchProducts]);
+
+  const deleteProduct = useCallback(async (id) => {
+    setLoading(true);
+    try {
+      await productApi.deleteProduct(id);
+      setProducts((prev) => prev.filter((p) => (p.id || p._id) !== id));
+      return true;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // Initial load of filter metadata and initial catalog
+  useEffect(() => {
+    fetchFiltersMetadata();
+  }, [fetchFiltersMetadata]);
 
   return (
     <ProductContext.Provider
       value={{
         products,
+        loading,
+        error,
+        pagination,
+        filtersMetadata,
+        fetchProducts,
+        fetchFiltersMetadata,
+        getProductById,
         addProduct,
         updateProduct,
         deleteProduct,
-        getProductById,
-        resetProducts
       }}
     >
       {children}

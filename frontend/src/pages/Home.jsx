@@ -9,14 +9,51 @@ import {
   Award
 } from 'lucide-react';
 import { useProducts } from '../context/ProductContext';
+import { productApi } from '../api/productApi';
 import { mockCategories } from '../data/mockCategories';
 import { ProductCard } from '../components/products/ProductCard';
 import { Button } from '../components/common/Button';
 
 export const Home = () => {
   const { products } = useProducts();
-  const featuredProducts = products.filter(p => p.featured).slice(0, 4);
-  const newArrivals = products.filter(p => p.isNew).slice(0, 4);
+  const [featuredProducts, setFeaturedProducts] = React.useState([]);
+  const [newArrivals, setNewArrivals] = React.useState([]);
+
+  React.useEffect(() => {
+    let isMounted = true;
+    const loadHomeData = async () => {
+      try {
+        const [featuredRes, newestRes] = await Promise.all([
+          productApi.getProducts({ limit: 4, sort: 'newest' }),
+          productApi.getProducts({ limit: 4, sort: 'price_desc' }),
+        ]);
+
+        if (isMounted) {
+          if (featuredRes?.data?.length > 0) {
+            setFeaturedProducts(featuredRes.data);
+          } else {
+            setFeaturedProducts(products.slice(0, 4));
+          }
+          if (newestRes?.data?.length > 0) {
+            setNewArrivals(newestRes.data);
+          } else {
+            setNewArrivals(products.slice(4, 8));
+          }
+        }
+      } catch (err) {
+        console.error('Home product load error:', err);
+        if (isMounted && products.length > 0) {
+          setFeaturedProducts(products.slice(0, 4));
+          setNewArrivals(products.slice(4, 8));
+        }
+      }
+    };
+
+    loadHomeData();
+    return () => {
+      isMounted = false;
+    };
+  }, [products]);
 
   const valueProps = [
     {

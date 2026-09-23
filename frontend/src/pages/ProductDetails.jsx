@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -16,6 +16,7 @@ import { useProducts } from '../context/ProductContext';
 import { useCart } from '../context/CartContext';
 import { Button } from '../components/common/Button';
 import { ProductCard } from '../components/products/ProductCard';
+import { LoadingSpinner } from '../components/common/LoadingSpinner';
 
 export const ProductDetails = () => {
   const { id } = useParams();
@@ -23,11 +24,53 @@ export const ProductDetails = () => {
   const { getProductById, products } = useProducts();
   const { addToCart } = useCart();
 
-  const product = getProductById(id);
+  const [product, setProduct] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [quantity, setQuantity] = useState(1);
   const [added, setAdded] = useState(false);
 
-  if (!product) {
+  useEffect(() => {
+    let isMounted = true;
+    const loadProduct = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const data = await getProductById(id);
+        if (isMounted) {
+          if (data) {
+            setProduct(data);
+            setQuantity(1);
+          } else {
+            setError('Product not found');
+          }
+        }
+      } catch (err) {
+        if (isMounted) {
+          setError(err.message || 'Failed to load product details');
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    loadProduct();
+    return () => {
+      isMounted = false;
+    };
+  }, [id, getProductById]);
+
+  if (loading) {
+    return (
+      <div className="max-w-4xl mx-auto px-4 py-24 flex justify-center">
+        <LoadingSpinner size="lg" text="Loading product details..." />
+      </div>
+    );
+  }
+
+  if (error || !product) {
     return (
       <div className="max-w-4xl mx-auto px-4 py-20 text-center">
         <AlertCircle className="w-16 h-16 text-rose-500 mx-auto mb-4" />
@@ -53,7 +96,7 @@ export const ProductDetails = () => {
   };
 
   const relatedProducts = products
-    .filter(p => p.category === product.category && p.id !== product.id)
+    .filter(p => p.category === product.category && (p.id || p._id) !== (product.id || product._id))
     .slice(0, 4);
 
   return (
@@ -254,7 +297,7 @@ export const ProductDetails = () => {
           </h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             {relatedProducts.map(rel => (
-              <ProductCard key={rel.id} product={rel} />
+              <ProductCard key={rel.id || rel._id} product={rel} />
             ))}
           </div>
         </div>

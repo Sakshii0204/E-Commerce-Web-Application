@@ -10,11 +10,15 @@ export const FilterPanel = ({
   onSelectBrand,
   maxPrice,
   onMaxPriceChange,
+  priceRange = { min: 0, max: 2000 },
   onlyInStock,
   onToggleInStock,
   onResetFilters,
   className = ''
 }) => {
+  const minBound = Math.floor(priceRange.min || 0);
+  const maxBound = Math.ceil(priceRange.max || 2000);
+
   return (
     <aside className={`bg-white rounded-2xl border border-slate-200/80 p-5 space-y-6 shadow-xs ${className}`}>
       {/* Header */}
@@ -96,16 +100,16 @@ export const FilterPanel = ({
         </div>
         <input
           type="range"
-          min="50"
-          max="1000"
-          step="25"
+          min={minBound}
+          max={maxBound > minBound ? maxBound : minBound + 100}
+          step="10"
           value={maxPrice}
           onChange={(e) => onMaxPriceChange(Number(e.target.value))}
           className="w-full accent-indigo-600 cursor-pointer"
         />
         <div className="flex justify-between text-[11px] text-slate-400">
-          <span>$50</span>
-          <span>$1000</span>
+          <span>${minBound}</span>
+          <span>${maxBound}</span>
         </div>
       </div>
 

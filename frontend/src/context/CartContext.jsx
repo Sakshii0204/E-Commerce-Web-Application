@@ -32,22 +32,23 @@ export const CartProvider = ({ children }) => {
   }, [cartItems]);
 
   const addToCart = (product, quantity = 1) => {
+    const prodId = product.id || product._id;
     setCartItems(prev => {
-      const existing = prev.find(item => item.id === product.id);
+      const existing = prev.find(item => item.id === prodId);
       if (existing) {
-        const nextQty = Math.min(existing.quantity + quantity, product.stock || 99);
+        const nextQty = Math.min(existing.quantity + quantity, product.stock !== undefined ? product.stock : 99);
         return prev.map(item =>
-          item.id === product.id ? { ...item, quantity: nextQty } : item
+          item.id === prodId ? { ...item, quantity: nextQty } : item
         );
       }
       return [...prev, {
-        id: product.id,
+        id: prodId,
         name: product.name,
         price: product.price,
         image: product.image,
         category: product.category,
         stock: product.stock,
-        quantity: Math.min(quantity, product.stock || 99)
+        quantity: Math.min(quantity, product.stock !== undefined ? product.stock : 99)
       }];
     });
   };

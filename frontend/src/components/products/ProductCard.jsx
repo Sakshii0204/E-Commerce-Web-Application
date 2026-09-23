@@ -52,7 +52,7 @@ export const ProductCard = ({ product }) => {
 
       {/* Image Container with hover zoom */}
       <Link
-        to={`/products/${product.id}`}
+        to={`/products/${product.id || product._id}`}
         className="relative block aspect-square w-full overflow-hidden bg-slate-100"
       >
         <img
@@ -80,7 +80,7 @@ export const ProductCard = ({ product }) => {
 
         {/* Product Title */}
         <Link
-          to={`/products/${product.id}`}
+          to={`/products/${product.id || product._id}`}
           className="text-sm font-semibold text-slate-900 line-clamp-1 hover:text-indigo-600 transition-colors mb-2"
           title={product.name}
         >
