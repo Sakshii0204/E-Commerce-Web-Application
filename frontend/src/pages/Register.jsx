@@ -27,6 +27,8 @@ export const Register = () => {
 
     if (!formData.fullName.trim()) {
       newErrors.fullName = 'Full name is required';
+    } else if (formData.fullName.trim().length < 2) {
+      newErrors.fullName = 'Full name must be at least 2 characters';
     }
 
     if (!formData.email.trim()) {
@@ -51,25 +53,30 @@ export const Register = () => {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setGeneralError('');
 
     if (!validate()) return;
 
     setIsLoading(true);
-    // Simulate frontend validation & registration
-    setTimeout(() => {
-      register({
+
+    try {
+      await register({
         fullName: formData.fullName,
-        email: formData.email
+        email: formData.email,
+        password: formData.password
       });
-      setIsLoading(false);
-      setSuccessMessage('Account registered successfully! Redirecting to shop...');
+
+      setSuccessMessage('Account registered successfully! Redirecting...');
       setTimeout(() => {
         navigate('/');
-      }, 1200);
-    }, 600);
+      }, 800);
+    } catch (err) {
+      setGeneralError(err.message || 'Registration failed. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -152,7 +159,7 @@ export const Register = () => {
           />
 
           <p className="text-[11px] text-slate-500">
-            By creating an account, you agree to NovaMart Terms of Service and Privacy Policy.
+            By creating an account, you agree to NovaMart Terms of Service and Privacy Policy. All accounts are registered with standard customer access.
           </p>
 
           <Button

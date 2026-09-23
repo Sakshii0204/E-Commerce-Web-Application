@@ -5,6 +5,10 @@ import { Routes, Route } from 'react-router-dom';
 import { MainLayout } from '../layouts/MainLayout';
 import { AdminLayout } from '../layouts/AdminLayout';
 
+// Route Guards
+import { ProtectedRoute } from '../components/common/ProtectedRoute';
+import { AdminRoute } from '../components/common/AdminRoute';
+
 // Customer Pages
 import { Home } from '../pages/Home';
 import { Products } from '../pages/Products';
@@ -33,22 +37,60 @@ export const AppRoutes = () => {
     <Routes>
       {/* Customer Storefront Routes */}
       <Route path="/" element={<MainLayout />}>
+        {/* Public Routes */}
         <Route index element={<Home />} />
         <Route path="products" element={<Products />} />
         <Route path="products/:id" element={<ProductDetails />} />
         <Route path="login" element={<Login />} />
         <Route path="register" element={<Register />} />
         <Route path="cart" element={<Cart />} />
-        <Route path="checkout" element={<Checkout />} />
         <Route path="order-success" element={<OrderSuccess />} />
-        <Route path="orders" element={<MyOrders />} />
-        <Route path="orders/:id" element={<OrderDetails />} />
-        <Route path="profile" element={<Profile />} />
         <Route path="unauthorized" element={<Unauthorized />} />
+
+        {/* Protected Customer Routes */}
+        <Route
+          path="checkout"
+          element={
+            <ProtectedRoute>
+              <Checkout />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="orders"
+          element={
+            <ProtectedRoute>
+              <MyOrders />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="orders/:id"
+          element={
+            <ProtectedRoute>
+              <OrderDetails />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="profile"
+          element={
+            <ProtectedRoute>
+              <Profile />
+            </ProtectedRoute>
+          }
+        />
       </Route>
 
-      {/* Admin Portal Routes */}
-      <Route path="/admin" element={<AdminLayout />}>
+      {/* Protected Admin Portal Routes */}
+      <Route
+        path="/admin"
+        element={
+          <AdminRoute>
+            <AdminLayout />
+          </AdminRoute>
+        }
+      >
         <Route index element={<Dashboard />} />
         <Route path="products" element={<AdminProducts />} />
         <Route path="products/new" element={<AddProduct />} />

@@ -40,23 +40,31 @@ export const Login = () => {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setGeneralError('');
 
     if (!validate()) return;
 
     setIsLoading(true);
-    // Simulate frontend validation & mock login response
-    setTimeout(() => {
-      login(formData.email, formData.password);
-      setIsLoading(false);
+
+    try {
+      const loggedInUser = await login(formData.email, formData.password);
       setSuccessMessage('Logged in successfully! Redirecting...');
+
       setTimeout(() => {
-        const redirect = location.state?.from || '/';
-        navigate(redirect);
-      }, 1000);
-    }, 600);
+        if (loggedInUser.role === 'ADMIN') {
+          navigate('/admin');
+        } else {
+          const redirect = location.state?.from || '/';
+          navigate(redirect);
+        }
+      }, 700);
+    } catch (err) {
+      setGeneralError(err.message || 'Invalid email or password');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -73,7 +81,7 @@ export const Login = () => {
             Welcome Back
           </h1>
           <p className="text-xs sm:text-sm text-slate-500">
-            Sign in to access your orders, cart, and account settings
+            Sign in with your NovaMart account credentials
           </p>
         </div>
 
@@ -127,7 +135,7 @@ export const Login = () => {
 
             <button
               type="button"
-              onClick={() => alert("Mock password reset link sent to email in Phase 1 demo.")}
+              onClick={() => alert("Password reset functionality is outside Phase 2 scope.")}
               className="text-indigo-600 hover:underline font-semibold"
             >
               Forgot password?
@@ -147,11 +155,11 @@ export const Login = () => {
           </Button>
         </form>
 
-        {/* Demo Credentials hint */}
+        {/* Default Admin Seeding Credentials info */}
         <div className="p-3 bg-indigo-50/60 rounded-xl border border-indigo-100 text-xs text-indigo-900 space-y-1">
-          <p className="font-bold">Phase 1 Demo Credentials:</p>
-          <p className="text-indigo-700">Customer: <code className="font-mono">customer@example.com</code></p>
-          <p className="text-indigo-700">Admin: <code className="font-mono">admin@novamart.com</code> (Any pass 6+ chars)</p>
+          <p className="font-bold">Default Seeded Admin Account:</p>
+          <p className="text-indigo-700">Email: <code className="font-mono">admin@novamart.com</code></p>
+          <p className="text-indigo-700">Password: <code className="font-mono">AdminPassword123!</code></p>
         </div>
 
         {/* Footer */}

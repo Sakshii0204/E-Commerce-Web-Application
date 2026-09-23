@@ -20,7 +20,7 @@ export const Navbar = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { cartCount } = useCart();
-  const { user, isAuthenticated, logout } = useAuth();
+  const { user, isAuthenticated, isAdmin, logout } = useAuth();
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -109,15 +109,17 @@ export const Navbar = () => {
 
           {/* Right Action Icons */}
           <div className="flex items-center gap-2">
-            {/* Admin Portal Quick Switch */}
-            <Link
-              to="/admin"
-              className="hidden lg:inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-lg text-slate-600 bg-slate-100 hover:bg-slate-200 border border-slate-200 transition-colors"
-              title="Switch to Admin Portal"
-            >
-              <Shield className="w-3.5 h-3.5 text-indigo-600" />
-              <span>Admin</span>
-            </Link>
+            {/* Admin Portal Link (Visible only to authorized ADMIN) */}
+            {isAdmin && (
+              <Link
+                to="/admin"
+                className="hidden lg:inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-lg text-slate-600 bg-slate-100 hover:bg-slate-200 border border-slate-200 transition-colors"
+                title="Admin Control Portal"
+              >
+                <Shield className="w-3.5 h-3.5 text-indigo-600" />
+                <span>Admin</span>
+              </Link>
+            )}
 
             {/* Cart Button */}
             <Link
@@ -141,11 +143,9 @@ export const Navbar = () => {
                   onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
                   className="flex items-center gap-2 p-1.5 rounded-xl hover:bg-slate-100 text-slate-700 focus:outline-none cursor-pointer"
                 >
-                  <img
-                    src={user?.avatar || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80"}
-                    alt={user?.name || "User"}
-                    className="w-8 h-8 rounded-lg object-cover ring-1 ring-slate-200"
-                  />
+                  <div className="w-8 h-8 rounded-lg bg-indigo-600 text-white flex items-center justify-center font-bold text-xs ring-1 ring-slate-200">
+                    {user?.name ? user.name.charAt(0).toUpperCase() : 'U'}
+                  </div>
                   <ChevronDown className="w-4 h-4 text-slate-400 hidden sm:block" />
                 </button>
 
@@ -175,13 +175,15 @@ export const Navbar = () => {
                       <PackageCheck className="w-4 h-4" />
                       My Orders
                     </Link>
-                    <Link
-                      to="/admin"
-                      className="flex items-center gap-2.5 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 hover:text-indigo-600"
-                    >
-                      <Shield className="w-4 h-4 text-indigo-500" />
-                      Admin Dashboard
-                    </Link>
+                    {isAdmin && (
+                      <Link
+                        to="/admin"
+                        className="flex items-center gap-2.5 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 hover:text-indigo-600"
+                      >
+                        <Shield className="w-4 h-4 text-indigo-500" />
+                        Admin Dashboard
+                      </Link>
+                    )}
 
                     <div className="border-t border-slate-100 mt-1 pt-1">
                       <button
@@ -278,14 +280,16 @@ export const Navbar = () => {
                   </span>
                 )}
               </Link>
-              <Link
-                to="/admin"
-                onClick={() => setMobileMenuOpen(false)}
-                className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-indigo-600 bg-indigo-50/50 hover:bg-indigo-50"
-              >
-                <Shield className="w-4 h-4 text-indigo-600" />
-                Admin Portal
-              </Link>
+              {isAdmin && (
+                <Link
+                  to="/admin"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-indigo-600 bg-indigo-50/50 hover:bg-indigo-50"
+                >
+                  <Shield className="w-4 h-4 text-indigo-600" />
+                  Admin Portal
+                </Link>
+              )}
 
               {!isAuthenticated ? (
                 <div className="pt-2 border-t border-slate-100 flex flex-col gap-2">

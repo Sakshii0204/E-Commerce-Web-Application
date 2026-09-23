@@ -1,58 +1,58 @@
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { authApi } from '../api/authApi.js';
 
 const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(() => {
+  const [user, setUser] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Restore authenticated session on application mount via /api/auth/me
+  const refreshUser = useCallback(async () => {
     try {
-      const saved = localStorage.getItem('novamart_user');
-      return saved ? JSON.parse(saved) : {
-        name: "Sakshi Sharma",
-        email: "sakshi@example.com",
-        role: "admin", // Admin enabled for testing customer & admin views seamlessly
-        avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80",
-        phone: "+91 98765 43210",
-        joinedDate: "January 2025"
-      };
+      const data = await authApi.getMe();
+      if (data.success && data.user) {
+        setUser(data.user);
+      } else {
+        setUser(null);
+      }
     } catch {
-      return null;
+      setUser(null);
+    } finally {
+      setIsLoading(false);
     }
-  });
+  }, []);
 
-  const login = (email, _password) => {
-    // Mock login
-    const isMockAdmin = email.toLowerCase().includes('admin');
-    const mockUser = {
-      name: isMockAdmin ? "Admin Manager" : (email.split('@')[0] || "Shopper"),
-      email,
-      role: isMockAdmin ? "admin" : "customer",
-      avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80",
-      phone: "+91 98765 43210",
-      joinedDate: "February 2025"
-    };
-    setUser(mockUser);
-    localStorage.setItem('novamart_user', JSON.stringify(mockUser));
-    return mockUser;
+  useEffect(() => {
+    refreshUser();
+  }, [refreshUser]);
+
+  const login = async (email, password) => {
+    const res = await authApi.login({ email, password });
+    if (res.success && res.user) {
+      setUser(res.user);
+      return res.user;
+    }
+    throw new Error(res.message || 'Login failed');
   };
 
-  const register = ({ fullName, email }) => {
-    // Mock register
-    const newUser = {
-      name: fullName,
-      email,
-      role: "customer",
-      avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=80",
-      phone: "+91 98000 00000",
-      joinedDate: "February 2025"
-    };
-    setUser(newUser);
-    localStorage.setItem('novamart_user', JSON.stringify(newUser));
-    return newUser;
+  const register = async ({ fullName, email, password }) => {
+    const res = await authApi.register({ name: fullName, email, password });
+    if (res.success && res.user) {
+      setUser(res.user);
+      return res.user;
+    }
+    throw new Error(res.message || 'Registration failed');
   };
 
-  const logout = () => {
-    setUser(null);
-    localStorage.removeItem('novamart_user');
+  const logout = async () => {
+    try {
+      await authApi.logout();
+    } catch (err) {
+      console.warn('Logout API error:', err);
+    } finally {
+      setUser(null);
+    }
   };
 
   return (
@@ -60,10 +60,12 @@ export const AuthProvider = ({ children }) => {
       value={{
         user,
         isAuthenticated: Boolean(user),
-        isAdmin: user?.role === 'admin',
+        isAdmin: user?.role === 'ADMIN',
+        isLoading,
         login,
         register,
-        logout
+        logout,
+        refreshUser
       }}
     >
       {children}
