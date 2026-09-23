@@ -3,7 +3,7 @@
 ## Overview
 - **Project:** Full-Featured MERN E-Commerce Web Application (NovaMart)
 - **Internship:** QSkill — 1 Month Internship
-- **Current Phase:** Phase 2 (Backend + Database + Authentication) — Completed
+- **Current Phase:** Phase 3 (Product System + Search/Filtering + Admin Product Management) — Completed
 
 ---
 
@@ -12,69 +12,66 @@
 | Phase | Title | Focus Area | Status |
 |---|---|---|---|
 | **Phase 1** | **Project Foundation + Complete Frontend UI** | UI/UX, Component Architecture, Mock State, Routing | **Completed** |
-| **Phase 2** | **Backend + Database + Authentication** | Express.js, MongoDB, Mongoose, JWT & Bcrypt Auth, RBAC | **Completed (Current)** |
-| **Phase 3** | **Product System + Search/Filtering + Admin Products** | Real Product CRUD, Cloudinary, Advanced Filter APIs | Upcoming |
+| **Phase 2** | **Backend + Database + Authentication** | Express.js, MongoDB, Mongoose, JWT & Bcrypt Auth, RBAC | **Completed** |
+| **Phase 3** | **Product System + Search/Filtering + Admin Products** | Real Product CRUD, MongoDB Catalog, Filtering, Seeding | **Completed (Current)** |
 | **Phase 4** | **Cart + Checkout + Order Processing** | Persistent Cart, Order Checkout, Inventory Management | Upcoming |
 | **Phase 5** | **Admin Orders + Polish + Deployment** | Full Admin Controls, Testing, Vercel & Render Deployment | Upcoming |
 
 ---
 
-## Phase 2 Layered Backend Architecture
+## Current Architecture Specification
 
 ```
-Client (React Frontend)
+React Storefront & Admin UI
         │
-        ▼ (HttpOnly Cookie with JWT)
-Express REST API Server (src/app.js)
+        ├─ Authentication API Client (api/authApi.js)
+        │       │
+        │       ▼
+        │   /api/auth ──► AuthService ──► UserRepository ──► User Model ──► MongoDB
         │
-        ├─ Security Middleware (Helmet, CORS with Credentials, JSON limits)
-        │
-        ▼
-Route Layer (src/routes/auth.routes.js)
-        │
-        ├─ Validation Middleware (Zod schema validation)
-        ├─ Authentication Middleware (JWT extraction & signature verification)
-        └─ Authorization Middleware (RBAC: CUSTOMER vs ADMIN)
-        │
-        ▼
-Controller Layer (src/controllers/auth.controller.js)
-        │
-        ▼
-Service Layer (src/services/auth.service.js)
-        │ (Business rules: password comparison, token issuance, CUSTOMER enforcement)
-        │
-        ▼
-Repository Layer (src/repositories/user.repository.js)
-        │
-        ▼
-Mongoose Model Layer (src/models/User.js)
-        │ (Bcrypt pre-save hashing, schema validations, index constraints)
-        │
-        ▼
-Database (MongoDB: novamart)
+        └─ Product API Client (api/productApi.js)
+                │
+                ▼
+            /api/products ──► ProductService ──► ProductRepository ──► Product Model ──► MongoDB
 ```
+
+### Data Boundary Matrix (Phase 3 Status)
+- **Authentication:** **REAL** MongoDB-backed (Mongoose `User` model, HttpOnly cookie JWT, bcrypt)
+- **Products:** **REAL** MongoDB-backed (Mongoose `Product` model, server search, filter, sort, pagination)
+- **Cart:** **LOCAL / MOCK** (React `CartContext` with localStorage, zero database models/APIs)
+- **Orders:** **LOCAL / MOCK** (React `OrderContext` with mock orders, zero database models/APIs)
 
 ---
 
-## Authentication & Security Specifications
+## Product System Architecture
 
-1. **Password Hashing:**
-   - Evaluated and hashed using `bcryptjs` with salt factor 10.
-   - Plaintext passwords never stored in the database.
-   - Schema excludes password from standard queries (`select: false`) and removes it in `toJSON`.
+### 1. Product Model & Schema
+- `name`: String, required, trimmed, min 2, max 120
+- `description`: String, required, trimmed, max 2000
+- `price`: Number, required, min 0
+- `category`: String, required, trimmed
+- `brand`: String, required, trimmed
+- `image`: String, required, valid URL
+- `stock`: Number, integer, min 0
+- `isActive`: Boolean, default true (used for soft-delete/archival)
+- Timestamps: `createdAt`, `updatedAt`
+- Serialization: transforms `_id` to string `id`, hides `__v`
 
-2. **JWT & Session Transport:**
-   - Token payload: `{ userId, role }`.
-   - Transported via standard HttpOnly cookies (`novamart_token`).
-   - Cookie flags: `httpOnly: true`, `sameSite: 'lax'`, `secure: process.env.NODE_ENV === 'production'`.
-   - Protected from cross-site script reading (XSS token theft prevention).
+### 2. Indexes
+- `{ isActive: 1, category: 1 }`
+- `{ isActive: 1, brand: 1 }`
+- `{ isActive: 1, price: 1 }`
+- `{ isActive: 1, createdAt: -1 }`
+- Text search: `{ name: 'text', brand: 'text', category: 'text' }`
 
-3. **Role-Based Access Control (RBAC):**
-   - Available roles: `CUSTOMER` (default), `ADMIN`.
-   - Public registration strictly forces `role: 'CUSTOMER'`. Any client-supplied role values are ignored to prevent privilege escalation.
-   - Administrative users created through safe, idempotent CLI seed: `npm run seed:admin`.
+### 3. Query Engine
+- **Search:** Safe sanitized regex escaping special characters; searches `name`, `brand`, and `category` case-insensitively.
+- **Filters:** `category`, `brand`, `minPrice`, `maxPrice`, `inStock`.
+- **Sort:** Controlled mapping (`newest`, `price_asc`, `price_desc`, `name_asc`, `name_desc`).
+- **Pagination:** Server-side `page`, `limit` (max 50, default 12), returns `totalProducts`, `totalPages`, `hasNextPage`, `hasPreviousPage`.
+- **Filter Metadata:** `GET /api/products/filters` returns distinct categories, brands, and price bounds via aggregation.
 
-4. **Phase Boundaries:**
-   - **Authentication:** Real MERN stack implementation backed by MongoDB.
-   - **Products:** Mock data in React frontend (Phase 3 transition).
-   - **Cart & Orders:** Mock data in React frontend (Phase 4 transition).
+### 4. Admin CRUD & Lifecycle Strategy
+- **Create:** `POST /api/products` (Requires `authenticate` + `authorize('ADMIN')`, Zod validated)
+- **Update:** `PUT /api/products/:id` (Requires `authenticate` + `authorize('ADMIN')`, blocks immutable fields)
+- **Soft-Delete / Archive:** `DELETE /api/products/:id` sets `isActive: false`. Hides product from customer catalog while preserving historical references.
