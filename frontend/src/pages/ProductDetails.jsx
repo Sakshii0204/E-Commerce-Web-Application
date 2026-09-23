@@ -89,10 +89,18 @@ export const ProductDetails = () => {
     ? Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100)
     : null;
 
-  const handleAddToCart = () => {
-    addToCart(product, quantity);
-    setAdded(true);
-    setTimeout(() => setAdded(false), 2000);
+  const handleAddToCart = async () => {
+    try {
+      const res = await addToCart(product, quantity);
+      if (res?.requiresAuth) {
+        navigate(`/login?redirect=/products/${product.id || product._id}`);
+        return;
+      }
+      setAdded(true);
+      setTimeout(() => setAdded(false), 2000);
+    } catch (err) {
+      alert(err.message || 'Failed to add item to cart');
+    }
   };
 
   const relatedProducts = products

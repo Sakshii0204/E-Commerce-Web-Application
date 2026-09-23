@@ -1,18 +1,27 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Star, ShoppingBag, Check, Eye } from 'lucide-react';
 import { useCart } from '../../context/CartContext';
 
 export const ProductCard = ({ product }) => {
+  const navigate = useNavigate();
   const { addToCart } = useCart();
   const [added, setAdded] = useState(false);
 
-  const handleAddToCart = (e) => {
+  const handleAddToCart = async (e) => {
     e.preventDefault();
     e.stopPropagation();
-    addToCart(product, 1);
-    setAdded(true);
-    setTimeout(() => setAdded(false), 1500);
+    try {
+      const res = await addToCart(product, 1);
+      if (res?.requiresAuth) {
+        navigate(`/login?redirect=/products/${product.id || product._id}`);
+        return;
+      }
+      setAdded(true);
+      setTimeout(() => setAdded(false), 1500);
+    } catch (err) {
+      alert(err.message || 'Failed to add item to cart');
+    }
   };
 
   const isOutOfStock = product.stock <= 0;

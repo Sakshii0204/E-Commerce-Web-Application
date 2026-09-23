@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Trash2, Plus, Minus } from 'lucide-react';
+import { Trash2, Plus, Minus, AlertTriangle } from 'lucide-react';
 import { useCart } from '../../context/CartContext';
 
 export const CartItem = ({ item }) => {
@@ -15,9 +15,17 @@ export const CartItem = ({ item }) => {
   };
 
   const itemSubtotal = item.price * item.quantity;
+  const isOutOfStock = item.stock <= 0;
+  const isOverStock = item.quantity > item.stock;
 
   return (
-    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 bg-white rounded-2xl border border-slate-200/80 gap-4 transition-all hover:border-slate-300">
+    <div
+      className={`flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 bg-white rounded-2xl border transition-all ${
+        item.isUnavailable || isOutOfStock || isOverStock
+          ? 'border-amber-300 bg-amber-50/20'
+          : 'border-slate-200/80 hover:border-slate-300'
+      } gap-4`}
+    >
       {/* Product info */}
       <div className="flex items-center gap-4 flex-1">
         <Link to={`/products/${item.id}`} className="shrink-0">
@@ -29,7 +37,7 @@ export const CartItem = ({ item }) => {
         </Link>
         <div className="flex flex-col">
           <span className="text-xs font-semibold text-indigo-600 uppercase tracking-wider">
-            {item.category || "Item"}
+            {item.category || 'Item'}
           </span>
           <Link
             to={`/products/${item.id}`}
@@ -40,6 +48,17 @@ export const CartItem = ({ item }) => {
           <span className="text-sm font-bold text-slate-700 mt-1">
             ${item.price.toFixed(2)}
           </span>
+
+          {/* Availability / Stock Warnings */}
+          {item.isUnavailable || isOutOfStock ? (
+            <span className="flex items-center gap-1 text-xs text-rose-600 font-semibold mt-1">
+              <AlertTriangle className="w-3.5 h-3.5" /> Product is currently unavailable
+            </span>
+          ) : isOverStock ? (
+            <span className="flex items-center gap-1 text-xs text-amber-600 font-semibold mt-1">
+              <AlertTriangle className="w-3.5 h-3.5" /> Only {item.stock} left in stock
+            </span>
+          ) : null}
         </div>
       </div>
 
@@ -61,7 +80,7 @@ export const CartItem = ({ item }) => {
           <button
             type="button"
             onClick={handleIncrease}
-            disabled={item.stock && item.quantity >= item.stock}
+            disabled={item.stock !== undefined && item.quantity >= item.stock}
             className="p-1.5 rounded-lg hover:bg-white text-slate-600 hover:text-slate-900 disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer"
             aria-label="Increase quantity"
           >

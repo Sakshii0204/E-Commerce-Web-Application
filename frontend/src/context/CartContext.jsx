@@ -1,99 +1,169 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { cartApi } from '../api/cartApi';
+import { useAuth } from './AuthContext';
 
 const CartContext = createContext();
 
 export const CartProvider = ({ children }) => {
-  // Initialize with local state (persist to localStorage for smooth UX)
-  const [cartItems, setCartItems] = useState(() => {
-    try {
-      const saved = localStorage.getItem('novamart_cart');
-      return saved ? JSON.parse(saved) : [
-        {
-          id: "prod-1",
-          name: "Sony WH-1000XM5 Wireless Headphones",
-          price: 349.99,
-          quantity: 1,
-          image: "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=800&auto=format&fit=crop&q=80",
-          stock: 24,
-          category: "Electronics"
-        }
-      ];
-    } catch {
-      return [];
-    }
-  });
+  const { isAuthenticated } = useAuth();
+  const [cartItems, setCartItems] = useState([]);
+  const [cartCount, setCartCount] = useState(0);
+  const [subtotal, setSubtotal] = useState(0);
+  const [shipping, setShipping] = useState(0);
+  const [tax, setTax] = useState(0);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
 
-  useEffect(() => {
-    try {
-      localStorage.setItem('novamart_cart', JSON.stringify(cartItems));
-    } catch (e) {
-      console.warn("Storage write failed", e);
-    }
-  }, [cartItems]);
+  const applyCartData = (data) => {
+    if (!data) return;
+    const items = (data.items || []).map((it) => ({
+      id: it.product.id || it.product._id,
+      productId: it.product.id || it.product._id,
+      name: it.product.name,
+      price: it.product.price,
+      image: it.product.image,
+      category: it.product.category,
+      brand: it.product.brand,
+      stock: it.product.stock,
+      isActive: it.product.isActive,
+      isUnavailable: it.product.isUnavailable,
+      isStockExceeded: it.product.isStockExceeded,
+      quantity: it.quantity,
+      lineTotal: it.lineTotal,
+    }));
 
-  const addToCart = (product, quantity = 1) => {
-    const prodId = product.id || product._id;
-    setCartItems(prev => {
-      const existing = prev.find(item => item.id === prodId);
-      if (existing) {
-        const nextQty = Math.min(existing.quantity + quantity, product.stock !== undefined ? product.stock : 99);
-        return prev.map(item =>
-          item.id === prodId ? { ...item, quantity: nextQty } : item
-        );
-      }
-      return [...prev, {
-        id: prodId,
-        name: product.name,
-        price: product.price,
-        image: product.image,
-        category: product.category,
-        stock: product.stock,
-        quantity: Math.min(quantity, product.stock !== undefined ? product.stock : 99)
-      }];
-    });
+    setCartItems(items);
+    setCartCount(data.itemCount || 0);
+    setSubtotal(data.subtotal || 0);
+    setShipping(data.shipping || 0);
+    setTax(data.tax || 0);
+    setTotal(data.total || 0);
   };
 
-  const removeFromCart = (productId) => {
-    setCartItems(prev => prev.filter(item => item.id !== productId));
-  };
-
-  const updateQuantity = (productId, quantity) => {
-    if (quantity <= 0) {
-      removeFromCart(productId);
+  const fetchCart = useCallback(async () => {
+    if (!isAuthenticated) {
+      setCartItems([]);
+      setCartCount(0);
+      setSubtotal(0);
+      setShipping(0);
+      setTax(0);
+      setTotal(0);
       return;
     }
-    setCartItems(prev =>
-      prev.map(item =>
-        item.id === productId
-          ? { ...item, quantity: Math.min(quantity, item.stock || 99) }
-          : item
-      )
-    );
+
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await cartApi.getCart();
+      if (res?.data) {
+        applyCartData(res.data);
+      }
+    } catch (err) {
+      setError(err.message || 'Failed to fetch cart');
+    } finally {
+      setLoading(false);
+    }
+  }, [isAuthenticated]);
+
+  useEffect(() => {
+    fetchCart();
+  }, [fetchCart]);
+
+  const addToCart = async (product, quantity = 1) => {
+    const prodId = product.id || product._id;
+    if (!isAuthenticated) {
+      // Return false to indicate unauthenticated (trigger login redirect)
+      return { requiresAuth: true };
+    }
+
+    setLoading(true);
+    try {
+      const res = await cartApi.addCartItem(prodId, quantity);
+      if (res?.data) {
+        applyCartData(res.data);
+      }
+      return { success: true };
+    } catch (err) {
+      setError(err.message);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const clearCart = () => {
-    setCartItems([]);
+  const updateQuantity = async (productId, quantity) => {
+    if (quantity <= 0) {
+      return removeFromCart(productId);
+    }
+
+    setLoading(true);
+    try {
+      const res = await cartApi.updateCartItem(productId, quantity);
+      if (res?.data) {
+        applyCartData(res.data);
+      }
+    } catch (err) {
+      setError(err.message);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const cartCount = cartItems.reduce((acc, item) => acc + item.quantity, 0);
-  const subtotal = cartItems.reduce((acc, item) => acc + item.price * item.quantity, 0);
-  const shipping = subtotal > 0 ? (subtotal >= 100 ? 0 : 15) : 0;
-  const tax = subtotal * 0.05; // 5% mock tax
-  const total = subtotal + shipping + tax;
+  const removeFromCart = async (productId) => {
+    setLoading(true);
+    try {
+      const res = await cartApi.removeCartItem(productId);
+      if (res?.data) {
+        applyCartData(res.data);
+      }
+    } catch (err) {
+      setError(err.message);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const clearCart = async () => {
+    setLoading(true);
+    try {
+      const res = await cartApi.clearCart();
+      if (res?.data) {
+        applyCartData(res.data);
+      } else {
+        setCartItems([]);
+        setCartCount(0);
+        setSubtotal(0);
+        setShipping(0);
+        setTax(0);
+        setTotal(0);
+      }
+    } catch (err) {
+      setError(err.message);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <CartContext.Provider
       value={{
         cartItems,
-        addToCart,
-        removeFromCart,
-        updateQuantity,
-        clearCart,
         cartCount,
         subtotal,
         shipping,
         tax,
-        total
+        total,
+        loading,
+        error,
+        fetchCart,
+        addToCart,
+        updateQuantity,
+        removeFromCart,
+        clearCart,
       }}
     >
       {children}
