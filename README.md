@@ -2,7 +2,7 @@
 
 > **QSkill — 1 Month MERN Stack Internship Project**
 
-A modern, responsive, and full-featured e-commerce web application developed as part of the QSkill internship program. Built following a strict 5-phase engineering roadmap, starting with a clean frontend architecture and progressing toward a full MERN stack deployment.
+A modern, responsive, and full-featured e-commerce web application developed as part of the QSkill internship program. Built following a strict 5-phase engineering roadmap.
 
 ---
 
@@ -10,122 +10,126 @@ A modern, responsive, and full-featured e-commerce web application developed as 
 
 | Phase | Title | Focus Area | Status |
 |---|---|---|---|
-| **Phase 1** | **Project Foundation + Complete Frontend** | UI/UX, Component Architecture, Mock State, Routing | **Completed (Phase 1 Passed)** |
-| **Phase 2** | **Backend + Database + Authentication** | Express.js, MongoDB, Mongoose, JWT & Bcrypt Auth | Upcoming |
+| **Phase 1** | **Project Foundation + Complete Frontend UI** | UI/UX, Component Architecture, Mock State, Routing | **Completed** |
+| **Phase 2** | **Backend + Database + Authentication** | Express.js, MongoDB, Mongoose, JWT & Bcrypt Auth, RBAC | **Completed (Phase 2 Passed)** |
 | **Phase 3** | **Product System + Search & Filtering** | Real Product CRUD, Cloudinary, Advanced Filter APIs | Upcoming |
 | **Phase 4** | **Cart + Checkout + Order Processing** | Persistent Cart, Order Checkout, Inventory Management | Upcoming |
 | **Phase 5** | **Admin Orders + Polish + Deployment** | Full Admin Controls, Testing, Vercel & Render Deployment | Upcoming |
 
 ---
 
-## Phase 1 Overview
+## Phase 2 Features & Backend Architecture
 
-Phase 1 focuses exclusively on establishing a production-grade frontend architecture:
-- Complete customer storefront and administrative portal
-- Reusable component system with clean styling via Tailwind CSS
-- Fully working client-side routing via React Router DOM
-- In-memory mock data layer and centralized React Context state
-- Form validation on login, registration, checkout, and product management
-- Zero backend dependencies or active databases (Phase 2 boundary respected)
+### 1. Layered REST API
+- **Routes → Validation → Middleware → Controllers → Services → Repositories → Mongoose Model → MongoDB**
+- Clean separation of concerns with isolated business rules.
 
----
+### 2. Authentication & Authorization (RBAC)
+- **Real Registration (`POST /api/auth/register`):** Input validated via Zod. Automatically enforces `CUSTOMER` role to prevent privilege escalation.
+- **Secure Login (`POST /api/auth/login`):** Compares password hash via `bcryptjs`. Emits generic error on non-existent accounts or bad credentials to prevent email enumeration.
+- **JWT via HttpOnly Cookies:** JWT tokens issued in `novamart_token` cookie with `httpOnly: true`, `sameSite: 'lax'`, and `secure: true` in production.
+- **Session Restoration (`GET /api/auth/me`):** Authenticates active session on application startup and browser refresh.
+- **Safe Logout (`POST /api/auth/logout`):** Clears authentication cookie and resets client session.
+- **Role-Based Access Control:** Reusable `authorize('ADMIN')` middleware. Blocks customers with `403 Forbidden` from administrative endpoints.
 
-## Tech Stack (Phase 1 Frontend)
-
-- **Library / Framework:** [React 19](https://react.dev/) + [Vite](https://vitejs.dev/)
-- **Language:** JavaScript (ESNext, Functional Components, Hooks)
-- **Styling:** [Tailwind CSS v4](https://tailwindcss.com/)
-- **Icons:** [Lucide React](https://lucide.dev/)
-- **Routing:** [React Router DOM v7](https://reactrouter.com/)
-
----
-
-## Project Structure
-
-```
-E-Commerce-Web-Application/
-├── frontend/                     # React + Vite Frontend Application
-│   ├── public/                   # Static assets & favicon
-│   ├── src/
-│   │   ├── assets/               # Brand logos and images
-│   │   ├── components/           # Reusable UI component library
-│   │   │   ├── common/           # Navbar, Footer, Buttons, Inputs, Modals, Badges
-│   │   │   ├── products/         # ProductCard, ProductGrid, SearchBar, FilterPanel
-│   │   │   ├── cart/             # CartItem, CartSummary
-│   │   │   └── admin/            # AdminSidebar, AdminHeader, AdminStatCard
-│   │   ├── context/              # Cart, Product, Order, and Auth contexts
-│   │   ├── data/                 # Mock products, categories, orders datasets
-│   │   ├── layouts/              # MainLayout (Storefront) & AdminLayout
-│   │   ├── pages/                # Customer pages (Home, Products, Details, Cart, Checkout, Profile, Orders)
-│   │   │   └── admin/            # Admin pages (Dashboard, Products, Add/Edit Product, Orders)
-│   │   ├── routes/               # Centralized React Router configuration
-│   │   ├── styles/               # Global CSS & Tailwind configuration
-│   │   ├── App.jsx               # Root application component with Context Providers
-│   │   └── main.jsx              # React DOM entrypoint
-│   ├── .env.example              # Environment variables template
-│   ├── package.json              # Frontend dependencies and scripts
-│   └── vite.config.js            # Vite configuration
-├── backend/                      # Reserved for Phase 2 Express.js server
-│   └── README.md                 # Phase 2 backend architecture specifications
-├── docs/                         # Architectural documentation and phase plans
-│   └── architecture.md
-├── .gitignore                    # Git ignore file
-└── README.md                     # Project documentation
-```
+### 3. Database & Security
+- **MongoDB Connection:** Native Mongoose connection (`novamart` database) with lifecycle event logging.
+- **Security Middleware:** `helmet` for HTTP headers, `cors` configured with `credentials: true` for `CLIENT_URL`, request body size limitations (`10kb`).
+- **Centralized Error Handling:** Global middleware handling operational `AppError`, Mongoose duplicate key (`409`), validation issues (`400`), and internal errors (`500`).
 
 ---
 
-## Installation & Running Locally
+## Available Phase 2 API Endpoints
+
+| Method | Endpoint | Access | Description |
+|---|---|---|---|
+| `GET` | `/api/health` | Public | Backend health check and operational status |
+| `POST` | `/api/auth/register` | Public | Register new customer account and set session cookie |
+| `POST` | `/api/auth/login` | Public | Authenticate user credentials and set session cookie |
+| `POST` | `/api/auth/logout` | Public | Clear authentication session cookie |
+| `GET` | `/api/auth/me` | Protected | Fetch authenticated user identity |
+| `GET` | `/api/auth/admin-check` | Admin Only | Test endpoint verifying administrative RBAC access |
+
+> [!NOTE]
+> Products (`/api/products`), Cart (`/api/cart`), and Orders (`/api/orders`) remain simulated via local React state and mock datasets until Phase 3 and Phase 4.
+
+---
+
+## Local Development & Setup
 
 ### Prerequisites
 - Node.js (v18 or newer, recommended v20+)
 - npm (v9 or newer)
+- MongoDB Server running locally (`mongodb://127.0.0.1:27017`) or MongoDB Atlas connection URI
 
-### Setup Instructions
+### Step-by-Step Execution
 
-1. **Clone the repository:**
-   ```bash
-   git clone https://github.com/Sakshii0204/E-Commerce-Web-Application.git
-   cd E-Commerce-Web-Application
-   ```
+#### 1. Backend Setup (Terminal 1)
+```bash
+# Navigate to backend
+cd backend
 
-2. **Navigate to the frontend directory:**
-   ```bash
-   cd frontend
-   ```
+# Install dependencies
+npm install
 
-3. **Install dependencies:**
-   ```bash
-   npm install
-   ```
+# Configure environment (copy template)
+cp .env.example .env
 
-4. **Start the development server:**
-   ```bash
-   npm run dev
-   ```
-   Open your browser and navigate to `http://localhost:5173`.
+# Seed initial Administrator account
+npm run seed:admin
 
-5. **Build for production:**
-   ```bash
-   npm run build
-   ```
+# Start backend dev server (port 5000)
+npm run dev
+```
+
+#### 2. Frontend Setup (Terminal 2)
+```bash
+# Navigate to frontend
+cd frontend
+
+# Install dependencies
+npm install
+
+# Start frontend dev server (port 5173)
+npm run dev
+```
+
+Open `http://localhost:5173` in your browser.
 
 ---
 
-## Phase 1 Features Implemented
+## Administrator Account Creation
 
-### Customer Storefront
-- **Home Page:** Hero banner, interactive category cards, featured products carousel/grid, trust benefits, promotional spotlight, and comprehensive footer.
-- **Products Catalog:** Multi-facet filtering (categories, brands, price range slider, in-stock toggle), search query matching, and sorting (price low-to-high, price high-to-low, newest).
-- **Product Details:** High-res image display, stock availability indicators, interactive quantity selector, specifications, and instant Add to Cart.
-- **Cart Management:** Dynamic item quantity adjustments, real-time subtotal/tax/shipping calculator, item removal, and empty state UI.
-- **Checkout & Orders:** Shipping details collection with frontend validation, Cash on Delivery option, mock order placement, and dedicated Order Success screen.
-- **Order History:** Customer order records with status badges, date, pricing breakdown, and detailed modal/page view.
-- **Authentication Pages:** Customer Login and Register forms with field validation (format check, password confirmation, show/hide toggle).
-- **Customer Profile:** View account details and mock profile settings.
+Public registration automatically restricts accounts to `CUSTOMER` access. To generate an administrator:
+```bash
+cd backend
+npm run seed:admin
+```
+Default credentials configured in `.env.example`:
+- **Email:** `admin@novamart.com`
+- **Password:** `AdminPassword123!`
 
-### Administrative Management Portal
-- **Admin Dashboard:** Real-time KPI statistics (Total Products, Total Orders, Pending Orders, Delivered Orders, Low Stock Alerts), recent order records, and quick shortcuts.
-- **Product Management:** Searchable and filterable product catalog table with stock status indicators, Add Product form, Edit Product form, and safe Delete confirmation dialog.
-- **Order Management:** Customer order lifecycle management with quick status updater (`Placed` -> `Processing` -> `Shipped` -> `Delivered` -> `Cancelled`).
-- **Admin Layout:** Distinct responsive sidebar navigation with desktop and mobile drawer toggle, breadcrumb headers, and one-click store return.
+---
+
+## Automated Testing & Quality Checks
+
+### Backend Automated Test Suite (17 Tests)
+```bash
+cd backend
+npm test
+```
+Tests cover:
+- Health check verification
+- Registration validations (valid customer, duplicate email, malformed email, short password, missing fields, client privilege escalation prevention)
+- Login validations (correct credentials, bad password, non-existent email)
+- Authentication checks (`/me` with and without session cookie, invalid token rejection)
+- RBAC verification (Customer blocked with 403, Admin allowed with 200)
+- Logout cookie clearance
+- Password hashing verification in MongoDB
+
+### Frontend Linting & Production Build
+```bash
+cd frontend
+npm run lint
+npm run build
+```

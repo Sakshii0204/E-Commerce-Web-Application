@@ -1,51 +1,80 @@
 # E-Commerce Web Application — Architecture Document
 
 ## Overview
-- **Project:** Full-Featured MERN E-Commerce Web Application
+- **Project:** Full-Featured MERN E-Commerce Web Application (NovaMart)
 - **Internship:** QSkill — 1 Month Internship
-- **Current Phase:** Phase 1 (Frontend Foundation & Complete UI)
+- **Current Phase:** Phase 2 (Backend + Database + Authentication) — Completed
 
-## 5-Phase Development Plan
-1. **Phase 1: Project Foundation + Complete Frontend UI (Current)**
-   - Project directory structure setup
-   - React + Vite + Tailwind CSS responsive frontend
-   - Complete customer and admin page templates
-   - Centralized mock data and React Context state
-   - Full client-side routing and validation
-2. **Phase 2: Backend + Database + Authentication**
-   - Node.js & Express REST API server
-   - MongoDB database models with Mongoose
-   - User authentication with JWT & bcrypt
-   - Authentication & Authorization middleware
-3. **Phase 3: Product System + Search/Filtering + Admin Product Management**
-   - Real backend product CRUD endpoints
-   - Cloudinary image uploads
-   - Advanced server-side search, filtering, and pagination
-4. **Phase 4: Cart + Checkout + Order Processing**
-   - Server-side persistent cart
-   - Order creation and inventory deduction
-   - Payment gateway integration / Cash on delivery processing
-5. **Phase 5: Admin Orders + Polish + Deployment**
-   - Real admin order management and status changes
-   - End-to-end testing and performance tuning
-   - Production deployment (e.g. Vercel for Frontend, Render/Railway for Backend, MongoDB Atlas)
+---
 
-## Frontend Architecture (Phase 1)
+## 5-Phase Development Roadmap
+
+| Phase | Title | Focus Area | Status |
+|---|---|---|---|
+| **Phase 1** | **Project Foundation + Complete Frontend UI** | UI/UX, Component Architecture, Mock State, Routing | **Completed** |
+| **Phase 2** | **Backend + Database + Authentication** | Express.js, MongoDB, Mongoose, JWT & Bcrypt Auth, RBAC | **Completed (Current)** |
+| **Phase 3** | **Product System + Search/Filtering + Admin Products** | Real Product CRUD, Cloudinary, Advanced Filter APIs | Upcoming |
+| **Phase 4** | **Cart + Checkout + Order Processing** | Persistent Cart, Order Checkout, Inventory Management | Upcoming |
+| **Phase 5** | **Admin Orders + Polish + Deployment** | Full Admin Controls, Testing, Vercel & Render Deployment | Upcoming |
+
+---
+
+## Phase 2 Layered Backend Architecture
+
 ```
-frontend/src/
-├── assets/          # Static assets and icons
-├── components/      # Modular, reusable UI components
-│   ├── common/      # Navbar, Footer, Buttons, Inputs, Modals, Badges
-│   ├── products/    # ProductCard, ProductGrid, FilterPanel, SearchBar
-│   ├── cart/        # CartItem, CartSummary
-│   └── admin/       # Sidebar, Header, StatCard, AdminRow
-├── context/         # React Context (Cart, Product, Order, Auth)
-├── data/            # Centralized realistic mock datasets
-├── layouts/         # MainLayout (Storefront) & AdminLayout (Admin portal)
-├── pages/           # Customer pages (Home, Products, Details, Cart, Checkout, etc.)
-│   └── admin/       # Admin pages (Dashboard, Products, Add/Edit Product, Orders, etc.)
-├── routes/          # Centralized React Router configuration
-├── styles/          # Design system & Tailwind CSS entry point
-├── App.jsx          # Root component wrapped with providers
-└── main.jsx         # Application entry
+Client (React Frontend)
+        │
+        ▼ (HttpOnly Cookie with JWT)
+Express REST API Server (src/app.js)
+        │
+        ├─ Security Middleware (Helmet, CORS with Credentials, JSON limits)
+        │
+        ▼
+Route Layer (src/routes/auth.routes.js)
+        │
+        ├─ Validation Middleware (Zod schema validation)
+        ├─ Authentication Middleware (JWT extraction & signature verification)
+        └─ Authorization Middleware (RBAC: CUSTOMER vs ADMIN)
+        │
+        ▼
+Controller Layer (src/controllers/auth.controller.js)
+        │
+        ▼
+Service Layer (src/services/auth.service.js)
+        │ (Business rules: password comparison, token issuance, CUSTOMER enforcement)
+        │
+        ▼
+Repository Layer (src/repositories/user.repository.js)
+        │
+        ▼
+Mongoose Model Layer (src/models/User.js)
+        │ (Bcrypt pre-save hashing, schema validations, index constraints)
+        │
+        ▼
+Database (MongoDB: novamart)
 ```
+
+---
+
+## Authentication & Security Specifications
+
+1. **Password Hashing:**
+   - Evaluated and hashed using `bcryptjs` with salt factor 10.
+   - Plaintext passwords never stored in the database.
+   - Schema excludes password from standard queries (`select: false`) and removes it in `toJSON`.
+
+2. **JWT & Session Transport:**
+   - Token payload: `{ userId, role }`.
+   - Transported via standard HttpOnly cookies (`novamart_token`).
+   - Cookie flags: `httpOnly: true`, `sameSite: 'lax'`, `secure: process.env.NODE_ENV === 'production'`.
+   - Protected from cross-site script reading (XSS token theft prevention).
+
+3. **Role-Based Access Control (RBAC):**
+   - Available roles: `CUSTOMER` (default), `ADMIN`.
+   - Public registration strictly forces `role: 'CUSTOMER'`. Any client-supplied role values are ignored to prevent privilege escalation.
+   - Administrative users created through safe, idempotent CLI seed: `npm run seed:admin`.
+
+4. **Phase Boundaries:**
+   - **Authentication:** Real MERN stack implementation backed by MongoDB.
+   - **Products:** Mock data in React frontend (Phase 3 transition).
+   - **Cart & Orders:** Mock data in React frontend (Phase 4 transition).
