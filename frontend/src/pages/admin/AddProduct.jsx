@@ -14,58 +14,74 @@ export const AddProduct = () => {
     name: '',
     description: '',
     price: '',
-    originalPrice: '',
     category: 'Electronics',
     brand: '',
     stock: '',
     image: '',
-    featured: false
   });
 
   const [errors, setErrors] = useState({});
   const [generalError, setGeneralError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const categories = ['Electronics', 'Fashion', 'Footwear', 'Accessories'];
+  const categories = ['Electronics', 'Fashion', 'Footwear', 'Accessories', 'Fitness'];
 
   const validate = () => {
     const newErrors = {};
-    if (!formData.name.trim()) newErrors.name = 'Product name is required';
-    if (!formData.description.trim()) newErrors.description = 'Description is required';
-    if (!formData.price || isNaN(formData.price) || Number(formData.price) <= 0) {
+    if (!formData.name.trim()) newErrors.name = 'Product name is required (min 2 characters)';
+    if (!formData.description.trim() || formData.description.trim().length < 5) {
+      newErrors.description = 'Description is required (min 5 characters)';
+    }
+    if (formData.price === '' || isNaN(formData.price) || Number(formData.price) < 0) {
       newErrors.price = 'Enter a valid positive price';
     }
     if (!formData.brand.trim()) newErrors.brand = 'Brand name is required';
-    if (!formData.stock || isNaN(formData.stock) || Number(formData.stock) < 0) {
-      newErrors.stock = 'Enter valid stock count';
+    if (
+      formData.stock === '' ||
+      isNaN(formData.stock) ||
+      !Number.isInteger(Number(formData.stock)) ||
+      Number(formData.stock) < 0
+    ) {
+      newErrors.stock = 'Enter a valid non-negative integer stock';
     }
-    if (!formData.image.trim()) {
-      newErrors.image = 'Image URL is required';
+    if (!formData.image.trim() || !formData.image.startsWith('http')) {
+      newErrors.image = 'Valid image URL is required (http/https)';
     }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setGeneralError('');
 
     if (!validate()) return;
 
     setIsSubmitting(true);
-    setTimeout(() => {
-      addProduct(formData);
-      setIsSubmitting(false);
+    try {
+      await addProduct({
+        name: formData.name.trim(),
+        description: formData.description.trim(),
+        price: Number(formData.price),
+        category: formData.category.trim(),
+        brand: formData.brand.trim(),
+        stock: Number(formData.stock),
+        image: formData.image.trim(),
+      });
       navigate('/admin/products');
-    }, 600);
+    } catch (err) {
+      setGeneralError(err.message || 'Failed to create product in backend');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   // Preset sample image helper
   const handleSetSampleImage = () => {
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
-      image: 'https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?w=800&auto=format&fit=crop&q=80'
+      image: 'https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?w=800&auto=format&fit=crop&q=80',
     }));
   };
 
@@ -83,7 +99,7 @@ export const AddProduct = () => {
           Add New Product
         </h2>
         <p className="text-xs sm:text-sm text-slate-500">
-          Create a new catalog item with pricing, images, and inventory stock
+          Create a new database catalog item with pricing, images, and inventory stock
         </p>
       </div>
 
@@ -110,7 +126,7 @@ export const AddProduct = () => {
               onChange={(e) => setFormData({ ...formData, category: e.target.value })}
               className="w-full rounded-xl border border-slate-300 bg-white py-2.5 px-3.5 text-sm text-slate-900 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
             >
-              {categories.map(c => (
+              {categories.map((c) => (
                 <option key={c} value={c}>{c}</option>
               ))}
             </select>
@@ -127,7 +143,7 @@ export const AddProduct = () => {
           />
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <FormInput
             label="Price ($)"
             name="price"
@@ -138,16 +154,6 @@ export const AddProduct = () => {
             onChange={(e) => setFormData({ ...formData, price: e.target.value })}
             error={errors.price}
             required
-          />
-
-          <FormInput
-            label="Original Price ($)"
-            name="originalPrice"
-            type="number"
-            step="0.01"
-            placeholder="249.99 (optional)"
-            value={formData.originalPrice}
-            onChange={(e) => setFormData({ ...formData, originalPrice: e.target.value })}
           />
 
           <FormInput
@@ -169,7 +175,7 @@ export const AddProduct = () => {
             <button
               type="button"
               onClick={handleSetSampleImage}
-              className="text-xs text-indigo-600 hover:underline flex items-center gap-1 font-semibold"
+              className="text-xs text-indigo-600 hover:underline flex items-center gap-1 font-semibold cursor-pointer"
             >
               <Sparkles className="w-3 h-3" /> Auto-fill Sample Image
             </button>
@@ -209,17 +215,6 @@ export const AddProduct = () => {
           {errors.description && <p className="text-xs text-rose-600">{errors.description}</p>}
         </div>
 
-        {/* Featured checkbox */}
-        <label className="flex items-center gap-2.5 cursor-pointer select-none">
-          <input
-            type="checkbox"
-            checked={formData.featured}
-            onChange={(e) => setFormData({ ...formData, featured: e.target.checked })}
-            className="w-4 h-4 text-indigo-600 rounded border-slate-300"
-          />
-          <span className="text-sm text-slate-700 font-medium">Feature this product on homepage</span>
-        </label>
-
         {/* Action buttons */}
         <div className="pt-4 border-t border-slate-100 flex items-center justify-end gap-3">
           <Link to="/admin/products">
@@ -231,7 +226,7 @@ export const AddProduct = () => {
             isLoading={isSubmitting}
             className="shadow-md shadow-indigo-200"
           >
-            Create Product (Mock)
+            Create Product
           </Button>
         </div>
       </form>

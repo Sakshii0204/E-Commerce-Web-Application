@@ -32,13 +32,13 @@ export const Dashboard = () => {
       <div className="bg-linear-to-r from-indigo-900 to-slate-900 rounded-3xl p-6 sm:p-8 text-white shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div className="space-y-2 max-w-xl">
           <span className="inline-block px-3 py-1 rounded-full bg-indigo-500/30 text-indigo-300 text-xs font-bold uppercase tracking-wider">
-            Phase 1 Overview
+            Phase 3 Live — Database Connected
           </span>
           <h2 className="text-2xl sm:text-3xl font-black tracking-tight">
             Store Operations Control Center
           </h2>
           <p className="text-sm text-slate-300">
-            Monitor catalog inventory, track pending shipments, and manage demo customer orders in real-time.
+            Monitor real MongoDB catalog inventory, manage stock levels, and oversee store operations in real-time.
           </p>
         </div>
 

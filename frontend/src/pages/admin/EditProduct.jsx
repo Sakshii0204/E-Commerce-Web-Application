@@ -1,31 +1,82 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { ArrowLeft, Save, AlertCircle, Image } from 'lucide-react';
-import { useProducts } from '../../context/ProductContext';
+import { productApi } from '../../api/productApi';
 import { FormInput } from '../../components/common/FormInput';
 import { Button } from '../../components/common/Button';
 import { ErrorMessage } from '../../components/common/ErrorMessage';
+import { LoadingSpinner } from '../../components/common/LoadingSpinner';
 
 export const EditProduct = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { getProductById, updateProduct } = useProducts();
 
-  const product = getProductById(id);
+  const [loading, setLoading] = useState(true);
+  const [productNotFound, setProductNotFound] = useState(false);
+  const [formData, setFormData] = useState({
+    name: '',
+    description: '',
+    price: '',
+    category: 'Electronics',
+    brand: '',
+    stock: '',
+    image: '',
+  });
 
-  const [formData, setFormData] = useState(() => ({
-    name: product?.name || '',
-    description: product?.description || '',
-    price: String(product?.price || ''),
-    originalPrice: String(product?.originalPrice || ''),
-    category: product?.category || 'Electronics',
-    brand: product?.brand || '',
-    stock: String(product?.stock || 0),
-    image: product?.image || '',
-    featured: Boolean(product?.featured)
-  }));
+  const [errors, setErrors] = useState({});
+  const [generalError, setGeneralError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  if (!product) {
+  const categories = ['Electronics', 'Fashion', 'Footwear', 'Accessories', 'Fitness'];
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchProduct = async () => {
+      setLoading(true);
+      try {
+        const res = await productApi.getProductById(id);
+        if (isMounted) {
+          if (res?.data) {
+            const p = res.data;
+            setFormData({
+              name: p.name || '',
+              description: p.description || '',
+              price: String(p.price !== undefined ? p.price : ''),
+              category: p.category || 'Electronics',
+              brand: p.brand || '',
+              stock: String(p.stock !== undefined ? p.stock : 0),
+              image: p.image || '',
+            });
+          } else {
+            setProductNotFound(true);
+          }
+        }
+      } catch (err) {
+        if (isMounted) {
+          setProductNotFound(true);
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    fetchProduct();
+    return () => {
+      isMounted = false;
+    };
+  }, [id]);
+
+  if (loading) {
+    return (
+      <div className="max-w-3xl mx-auto py-20 flex justify-center">
+        <LoadingSpinner size="lg" text="Loading product details..." />
+      </div>
+    );
+  }
+
+  if (productNotFound) {
     return (
       <div className="max-w-3xl mx-auto py-16 text-center space-y-4">
         <AlertCircle className="w-12 h-12 text-rose-500 mx-auto" />
@@ -40,33 +91,53 @@ export const EditProduct = () => {
 
   const validate = () => {
     const newErrors = {};
-    if (!formData.name.trim()) newErrors.name = 'Product name is required';
-    if (!formData.description.trim()) newErrors.description = 'Description is required';
-    if (!formData.price || isNaN(formData.price) || Number(formData.price) <= 0) {
-      newErrors.price = 'Enter a valid price';
+    if (!formData.name.trim()) newErrors.name = 'Product name is required (min 2 characters)';
+    if (!formData.description.trim() || formData.description.trim().length < 5) {
+      newErrors.description = 'Description is required (min 5 characters)';
+    }
+    if (formData.price === '' || isNaN(formData.price) || Number(formData.price) < 0) {
+      newErrors.price = 'Enter a valid positive price';
     }
     if (!formData.brand.trim()) newErrors.brand = 'Brand name is required';
-    if (!formData.stock || isNaN(formData.stock) || Number(formData.stock) < 0) {
-      newErrors.stock = 'Enter valid stock count';
+    if (
+      formData.stock === '' ||
+      isNaN(formData.stock) ||
+      !Number.isInteger(Number(formData.stock)) ||
+      Number(formData.stock) < 0
+    ) {
+      newErrors.stock = 'Enter a valid non-negative integer stock';
     }
-    if (!formData.image.trim()) newErrors.image = 'Image URL is required';
+    if (!formData.image.trim() || !formData.image.startsWith('http')) {
+      newErrors.image = 'Valid image URL is required';
+    }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setGeneralError('');
 
     if (!validate()) return;
 
     setIsSubmitting(true);
-    setTimeout(() => {
-      updateProduct(product.id, formData);
-      setIsSubmitting(false);
+    try {
+      await productApi.updateProduct(id, {
+        name: formData.name.trim(),
+        description: formData.description.trim(),
+        price: Number(formData.price),
+        category: formData.category.trim(),
+        brand: formData.brand.trim(),
+        stock: Number(formData.stock),
+        image: formData.image.trim(),
+      });
       navigate('/admin/products');
-    }, 600);
+    } catch (err) {
+      setGeneralError(err.message || 'Failed to update product');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -80,7 +151,7 @@ export const EditProduct = () => {
           <span>Back to Products Inventory</span>
         </Link>
         <h2 className="text-2xl font-black text-slate-900 tracking-tight">
-          Edit Product: {product.name}
+          Edit Product: {formData.name}
         </h2>
         <p className="text-xs sm:text-sm text-slate-500">
           Modify catalog details, pricing, and available stock units
@@ -109,7 +180,7 @@ export const EditProduct = () => {
               onChange={(e) => setFormData({ ...formData, category: e.target.value })}
               className="w-full rounded-xl border border-slate-300 bg-white py-2.5 px-3.5 text-sm text-slate-900 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
             >
-              {categories.map(c => (
+              {categories.map((c) => (
                 <option key={c} value={c}>{c}</option>
               ))}
             </select>
@@ -125,7 +196,7 @@ export const EditProduct = () => {
           />
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <FormInput
             label="Price ($)"
             name="price"
@@ -135,15 +206,6 @@ export const EditProduct = () => {
             onChange={(e) => setFormData({ ...formData, price: e.target.value })}
             error={errors.price}
             required
-          />
-
-          <FormInput
-            label="Original Price ($)"
-            name="originalPrice"
-            type="number"
-            step="0.01"
-            value={formData.originalPrice}
-            onChange={(e) => setFormData({ ...formData, originalPrice: e.target.value })}
           />
 
           <FormInput
@@ -174,6 +236,7 @@ export const EditProduct = () => {
                 src={formData.image}
                 alt="Preview"
                 className="w-24 h-24 object-cover rounded-lg bg-white"
+                onError={(e) => { e.target.style.display = 'none'; }}
               />
             </div>
           )}
@@ -190,17 +253,6 @@ export const EditProduct = () => {
           />
           {errors.description && <p className="text-xs text-rose-600">{errors.description}</p>}
         </div>
-
-        {/* Featured checkbox */}
-        <label className="flex items-center gap-2.5 cursor-pointer select-none">
-          <input
-            type="checkbox"
-            checked={formData.featured}
-            onChange={(e) => setFormData({ ...formData, featured: e.target.checked })}
-            className="w-4 h-4 text-indigo-600 rounded border-slate-300"
-          />
-          <span className="text-sm text-slate-700 font-medium">Feature this product on homepage</span>
-        </label>
 
         {/* Action buttons */}
         <div className="pt-4 border-t border-slate-100 flex items-center justify-end gap-3">

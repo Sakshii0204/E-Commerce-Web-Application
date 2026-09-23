@@ -1,34 +1,79 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, Search, Edit2, Trash2, CheckCircle2 } from 'lucide-react';
-import { useProducts } from '../../context/ProductContext';
+import { Plus, Search, Edit2, Trash2, CheckCircle2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { productApi } from '../../api/productApi';
 import { Button } from '../../components/common/Button';
 import { ConfirmationModal } from '../../components/common/ConfirmationModal';
 import { EmptyState } from '../../components/common/EmptyState';
+import { LoadingSpinner } from '../../components/common/LoadingSpinner';
 
 export const AdminProducts = () => {
-  const { products, deleteProduct } = useProducts();
-
+  const [products, setProducts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
+  const [categories, setCategories] = useState(['All']);
+  const [pagination, setPagination] = useState({
+    page: 1,
+    limit: 10,
+    totalProducts: 0,
+    totalPages: 1,
+  });
   const [deletingProductId, setDeletingProductId] = useState(null);
   const [feedbackNotice, setFeedbackNotice] = useState('');
 
-  const categories = ['All', ...Array.from(new Set(products.map(p => p.category)))];
+  const loadAdminProducts = useCallback(async (page = 1) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const params = {
+        page,
+        limit: 10,
+        sort: 'newest',
+        includeInactive: 'true',
+      };
+      if (searchQuery.trim()) params.search = searchQuery.trim();
+      if (selectedCategory !== 'All') params.category = selectedCategory;
 
-  const filteredProducts = products.filter(p => {
-    const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          p.brand.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesCategory = selectedCategory === 'All' || p.category === selectedCategory;
-    return matchesSearch && matchesCategory;
-  });
+      const [res, filterRes] = await Promise.all([
+        productApi.getProducts(params),
+        productApi.getProductFilters(),
+      ]);
 
-  const handleDeleteConfirm = () => {
-    if (deletingProductId) {
-      deleteProduct(deletingProductId);
+      if (res?.data) {
+        setProducts(res.data);
+        if (res.pagination) {
+          setPagination(res.pagination);
+        }
+      }
+      if (filterRes?.data?.categories) {
+        setCategories(['All', ...filterRes.data.categories]);
+      }
+    } catch (err) {
+      setError(err.message || 'Failed to fetch inventory items');
+    } finally {
+      setLoading(false);
+    }
+  }, [searchQuery, selectedCategory]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      loadAdminProducts(1);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [loadAdminProducts]);
+
+  const handleDeleteConfirm = async () => {
+    if (!deletingProductId) return;
+    try {
+      await productApi.deleteProduct(deletingProductId);
       setDeletingProductId(null);
-      setFeedbackNotice('Product deleted from mock catalog successfully.');
+      setFeedbackNotice('Product archived/deleted successfully.');
       setTimeout(() => setFeedbackNotice(''), 3000);
+      loadAdminProducts(pagination.page);
+    } catch (err) {
+      alert(err.message || 'Failed to delete product');
     }
   };
 
@@ -41,7 +86,7 @@ export const AdminProducts = () => {
             Product Management
           </h2>
           <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
-            View, filter, edit, or delete items in the store's inventory
+            Manage real database products, stock, and archive status
           </p>
         </div>
 
@@ -80,7 +125,7 @@ export const AdminProducts = () => {
             onChange={(e) => setSelectedCategory(e.target.value)}
             className="text-xs bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-700 focus:outline-none focus:border-indigo-500 w-full sm:w-auto"
           >
-            {categories.map(c => (
+            {categories.map((c) => (
               <option key={c} value={c}>{c}</option>
             ))}
           </select>
@@ -89,7 +134,18 @@ export const AdminProducts = () => {
 
       {/* Products Table Card */}
       <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
-        {filteredProducts.length === 0 ? (
+        {loading ? (
+          <div className="py-20 flex justify-center">
+            <LoadingSpinner size="lg" text="Loading inventory..." />
+          </div>
+        ) : error ? (
+          <div className="py-16 text-center text-rose-600 font-medium">
+            <p>{error}</p>
+            <Button variant="outline" size="sm" onClick={() => loadAdminProducts(1)} className="mt-4">
+              Retry
+            </Button>
+          </div>
+        ) : products.length === 0 ? (
           <EmptyState
             title="No matching products"
             description="Adjust your search query or selected category to view inventory items."
@@ -110,12 +166,13 @@ export const AdminProducts = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {filteredProducts.map((p) => {
+                {products.map((p) => {
+                  const prodId = p.id || p._id;
                   const isOutOfStock = p.stock <= 0;
                   const isLowStock = p.stock > 0 && p.stock <= 5;
 
                   return (
-                    <tr key={p.id} className="hover:bg-slate-50/70 transition-colors">
+                    <tr key={prodId} className="hover:bg-slate-50/70 transition-colors">
                       {/* Product details */}
                       <td className="py-3 px-4">
                         <div className="flex items-center gap-3">
@@ -148,7 +205,11 @@ export const AdminProducts = () => {
 
                       {/* Status */}
                       <td className="py-3 px-4">
-                        {isOutOfStock ? (
+                        {p.isActive === false ? (
+                          <span className="inline-block px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
+                            Archived
+                          </span>
+                        ) : isOutOfStock ? (
                           <span className="inline-block px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
                             Out of Stock
                           </span>
@@ -166,7 +227,7 @@ export const AdminProducts = () => {
                       {/* Actions */}
                       <td className="py-3 px-4 text-right">
                         <div className="flex items-center justify-end gap-2">
-                          <Link to={`/admin/products/${p.id}/edit`}>
+                          <Link to={`/admin/products/${prodId}/edit`}>
                             <button
                               className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors cursor-pointer"
                               title="Edit product"
@@ -176,9 +237,9 @@ export const AdminProducts = () => {
                           </Link>
 
                           <button
-                            onClick={() => setDeletingProductId(p.id)}
+                            onClick={() => setDeletingProductId(prodId)}
                             className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
-                            title="Delete product"
+                            title="Delete / Archive product"
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
@@ -191,14 +252,43 @@ export const AdminProducts = () => {
             </table>
           </div>
         )}
+
+        {/* Admin Pagination Controls */}
+        {pagination.totalPages > 1 && (
+          <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => loadAdminProducts(pagination.page - 1)}
+              disabled={pagination.page <= 1}
+              className="flex items-center gap-1"
+            >
+              <ChevronLeft className="w-4 h-4" />
+              <span>Previous</span>
+            </Button>
+            <span className="text-xs text-slate-500 font-medium">
+              Page {pagination.page} of {pagination.totalPages} ({pagination.totalProducts} items)
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => loadAdminProducts(pagination.page + 1)}
+              disabled={pagination.page >= pagination.totalPages}
+              className="flex items-center gap-1"
+            >
+              <span>Next</span>
+              <ChevronRight className="w-4 h-4" />
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Delete Confirmation Modal */}
       <ConfirmationModal
         isOpen={Boolean(deletingProductId)}
-        title="Delete Product"
-        message="Are you sure you want to delete this product from the mock catalog? This action will remove it from the catalog immediately."
-        confirmText="Delete Product"
+        title="Archive / Delete Product"
+        message="Are you sure you want to archive this product? It will immediately be hidden from the public customer storefront while retaining historical integrity."
+        confirmText="Archive Product"
         confirmVariant="danger"
         onConfirm={handleDeleteConfirm}
         onCancel={() => setDeletingProductId(null)}
