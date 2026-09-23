@@ -5,6 +5,7 @@ import cookieParser from 'cookie-parser';
 
 import { env } from './config/env.js';
 import authRoutes from './routes/auth.routes.js';
+import { productRoutes } from './routes/product.routes.js';
 import { notFound } from './middleware/notFound.middleware.js';
 import { errorHandler } from './middleware/error.middleware.js';
 
@@ -31,12 +32,13 @@ app.get('/api/health', (req, res) => {
     status: 'OK',
     message: 'NovaMart Backend API is operational',
     timestamp: new Date().toISOString(),
-    phase: 'Phase 2 (Authentication & Database)'
+    phase: 'Phase 3 (Product System & Catalog)'
   });
 });
 
 // Mount modular routes
 app.use('/api/auth', authRoutes);
+app.use('/api/products', productRoutes);
 
 // 404 handler
 app.use(notFound);
