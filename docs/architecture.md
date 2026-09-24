@@ -1,9 +1,10 @@
-# E-Commerce Web Application — Architecture Document
+# NovaMart Full-Stack E-Commerce — Final Architecture Document
 
 ## Overview
-- **Project:** Full-Featured MERN E-Commerce Web Application (NovaMart)
-- **Internship:** QSkill — 1 Month Internship
-- **Current Phase:** Phase 4 (Cart + Checkout + Order Processing) — Completed
+- **Project:** NovaMart Full-Stack E-Commerce Web Application
+- **Internship:** QSkill — 1 Month Internship (Final Phase Completed)
+- **Stack:** MERN (MongoDB, Express.js, React, Node.js) + Vite + Tailwind CSS
+- **Status:** **PHASE 5 COMPLETED — PRODUCTION READY**
 
 ---
 
@@ -11,76 +12,97 @@
 
 | Phase | Title | Focus Area | Status |
 |---|---|---|---|
-| **Phase 1** | **Project Foundation + Complete Frontend UI** | UI/UX, Component Architecture, Mock State, Routing | **Completed** |
-| **Phase 2** | **Backend + Database + Authentication** | Express.js, MongoDB, Mongoose, JWT & Bcrypt Auth, RBAC | **Completed** |
-| **Phase 3** | **Product System + Search/Filtering + Admin Products** | Real Product CRUD, MongoDB Catalog, Filtering, Seeding | **Completed** |
-| **Phase 4** | **Cart + Checkout + Order Processing** | Persistent Cart, Order Checkout, Inventory Management | **Completed (Current)** |
-| **Phase 5** | **Admin Orders + Polish + Deployment** | Full Admin Controls, Testing, Vercel & Render Deployment | Upcoming |
+| **Phase 1** | **Project Foundation + Complete Frontend UI** | UI/UX Design System, Component Library, Routing, Mock State | **Completed** |
+| **Phase 2** | **Backend + Database + Authentication** | Express REST API, MongoDB/Mongoose, JWT HttpOnly Cookie, RBAC | **Completed** |
+| **Phase 3** | **Product System + Search/Filtering + Admin Products** | Real Catalog CRUD, Server-Side Filtering/Search/Pagination, Soft-Deletes | **Completed** |
+| **Phase 4** | **Cart + Checkout + Customer Orders** | Persistent Cart, Authoritative Pricing, Stock Safety, Customer Orders | **Completed** |
+| **Phase 5** | **Admin Orders + Polish + Final QA + Deployment** | Admin Order Lifecycle, Inventory Restoration, Dashboard Analytics, Hardening | **Completed** |
 
 ---
 
-## Current Architecture Specification
+## Complete System Architecture
 
 ```
-React Storefront & Admin UI
+React / Vite Storefront & Admin Portal
         │
-        ├─ Authentication API Client (api/authApi.js)
-        │       │
+        ├── Centralized API Client (api/client.js)
+        │       │ (credentials: 'include' for HttpOnly JWT Cookie)
         │       ▼
-        │   /api/auth ──► AuthService ──► UserRepository ──► User Model ──► MongoDB
-        │
-        ├─ Product API Client (api/productApi.js)
+        ├── Express.js REST API Layer (PORT 5000 / Environment Bind)
         │       │
-        │       ▼
-        │   /api/products ──► ProductService ──► ProductRepository ──► Product Model ──► MongoDB
-        │
-        ├─ Cart API Client (api/cartApi.js)
+        │       ├── Global Security Middlewares:
+        │       │   ├── Helmet (HTTP Security Headers)
+        │       │   ├── CORS (Strict CLIENT_URL Whitelist with credentials)
+        │       │   ├── In-Memory Auth Rate Limiter
+        │       │   ├── Cookie Parser & JSON Parser (10kb payload limit)
         │       │
-        │       ▼
-        │   /api/cart ──► CartService ──► CartRepository ──► Cart Model ──► MongoDB
+        │       ├── Route Guards:
+        │       │   ├── authenticate (JWT verification & User existence check)
+        │       │   └── authorize('ADMIN') (Role-Based Access Control)
+        │       │
+        │       ├── Business Domains:
+        │       │   ├── /api/auth     ──► AuthController    ──► AuthService    ──► UserRepository    ──► User Model
+        │       │   ├── /api/products ──► ProductController ──► ProductService ──► ProductRepository ──► Product Model
+        │       │   ├── /api/cart     ──► CartController    ──► CartService    ──► CartRepository    ──► Cart Model
+        │       │   └── /api/orders   ──► OrderController   ──► OrderService   ──► OrderRepository   ──► Order Model
+        │       │
+        │       └── Centralized Error & 404 Handler (Standard JSON responses)
         │
-        └─ Order API Client (api/orderApi.js)
-                │
-                ▼
-            /api/orders ──► OrderService ──► OrderRepository ──► Order Model ──► MongoDB
-                                  │
-                                  ▼ (atomic conditional stock update / rollback)
-                              Product Model
+        ▼
+   MongoDB Database (novamart / novamart_test)
+        ├── users (Bcrypt password hashes, roles: CUSTOMER, ADMIN)
+        ├── products (Catalog items, categories, brands, stock counters, isActive soft-delete)
+        ├── carts (1-to-1 customer persistent carts, dynamic item resolution)
+        └── orders (Immutable item snapshots, order status lifecycle, payment status)
 ```
-
-### Data Boundary Matrix (Phase 4 Status)
-- **Authentication:** **REAL** MongoDB-backed (`User` model, HttpOnly cookie JWT, bcrypt, RBAC)
-- **Products:** **REAL** MongoDB-backed (`Product` model, server search, filter, sort, pagination)
-- **Cart:** **REAL** MongoDB-backed (`Cart` model, 1 persistent cart per customer, live product resolution)
-- **Checkout & Customer Orders:** **REAL** MongoDB-backed (`Order` model, COD, stock validation/decrement, immutable snapshots)
-- **Admin Order Management Workflow:** **PHASE 5** (Full status lifecycle, shipment management, advanced metrics)
 
 ---
 
-## Commerce & Order System Architecture
+## Controlled Order Status Lifecycle
 
-### 1. Cart Model & Rules
-- One persistent cart per customer (`user` unique index).
-- Items stored as `{ product, quantity }`.
-- Live prices and availability resolved dynamically against current `Product` documents in MongoDB.
-- Price changes in catalog reflect immediately in cart calculations.
+NovaMart enforces a strict server-side finite-state machine (FSM). Arbitrary backward or illegal transitions are blocked with 400 Bad Request:
 
-### 2. Order Model & Snapshots
-- `orderNumber`: Human-readable identifier format `NVM-YYYYMMDD-[RANDOM6]`, unique index.
-- `items`: Immutable snapshots storing `productName`, `price`, `image`, `quantity`, `lineTotal` at the exact moment of order placement.
-- `shippingAddress`: Full validated address.
-- `paymentMethod`: `COD` (Cash on Delivery).
-- `paymentStatus`: `PENDING`.
-- `orderStatus`: `PLACED`.
+```
+[PLACED] ───────┬────────► [PROCESSING] ────────► [SHIPPED] ────────► [DELIVERED] (Terminal)
+   │            │                 │                                         │
+   │            │                 │                                  COD Payment Set to PAID
+   │            │                 │                                  Delivered Timestamp Recorded
+   ▼            ▼                 ▼
+[CANCELLED] ◄───┴─────────────────┘
+   │
+   ├── Stock Restored to Inventory (+quantity for each item)
+   ├── stockRestored Flag Marked True (Idempotency Guard)
+   └── Terminal State (No further transitions allowed)
+```
 
-### 3. Financial Calculation & Authoritative Checkout
-- Server owns all financial computations:
-  - Subtotal: calculated from current active Product records.
-  - Shipping: Free for subtotal >= $100, else $15.
-  - Client-submitted prices and totals are strictly ignored.
+### Transition Matrix
+- **`PLACED`** ➔ `PROCESSING` or `CANCELLED`
+- **`PROCESSING`** ➔ `SHIPPED` or `CANCELLED`
+- **`SHIPPED`** ➔ `DELIVERED`
+- **`DELIVERED`** ➔ *Terminal* (No transitions allowed)
+- **`CANCELLED`** ➔ *Terminal* (No transitions allowed)
 
-### 4. Stock Safety & Concurrency
-- Atomic conditional stock decrement (`findOneAndUpdate` where `_id = productId` and `stock >= quantity`, using `$inc: { stock: -quantity }`).
-- If MongoDB replica set is present, executes multi-document transaction (`session.withTransaction`).
-- If standalone MongoDB is detected, employs conditional atomic execution with automatic compensating rollback (`$inc: { stock: quantity }`) upon document insertion failure.
-- Stock is never allowed to go below zero.
+---
+
+## Inventory Consistency & Restoration Strategy
+
+1. **Order Placement Stock Decrement:**
+   - Atomic conditional update: `{ _id: productId, stock: { $gte: quantity } }` with `{ $inc: { stock: -quantity } }`.
+   - Guaranteed against overselling and negative inventory.
+   - If a replica set is active, executes within a MongoDB multi-document transaction (`session`).
+   - If standalone MongoDB is active, uses automatic compensating rollback on failure.
+2. **Order Cancellation Stock Restoration:**
+   - When an order transitions to `CANCELLED` (from `PLACED` or `PROCESSING`), each purchased item quantity is incremented back into product stock (`$inc: { stock: quantity }`).
+   - Guarded by the `stockRestored: Boolean` flag on the `Order` document, preventing duplicate restorations.
+   - Repeated cancellation attempts from the terminal state return 400 Bad Request.
+
+---
+
+## Security Architecture
+
+- **Authentication:** HttpOnly, SameSite, Secure JSON Web Tokens stored in browser cookies (no insecure localStorage tokens).
+- **Authorization:** Backend role validation (`CUSTOMER` vs `ADMIN`). Admin routes reject non-admin users with 403 Forbidden.
+- **Input Validation:** Zod schemas validate request bodies, query parameters, and URL parameters on all sensitive routes.
+- **Rate Limiting:** Auth endpoints (`/api/auth/register`, `/api/auth/login`) are protected by an in-memory rate limiter against brute-force attacks.
+- **CORS Protection:** Configured with `credentials: true` and strict `origin: env.CLIENT_URL`.
+- **Environment Isolation:** Secrets (`JWT_SECRET`, database URIs) are loaded strictly from environment variables and never checked into source control.
