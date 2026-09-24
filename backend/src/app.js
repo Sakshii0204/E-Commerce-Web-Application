@@ -34,7 +34,7 @@ app.get('/api/health', (req, res) => {
     status: 'OK',
     message: 'NovaMart Backend API is operational',
     timestamp: new Date().toISOString(),
-    phase: 'Phase 4 (Cart, Checkout & Orders)'
+    phase: 'Phase 5 (Final Phase: Admin Orders & Operations)'
   });
 });
 
@@ -43,6 +43,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/cart', cartRoutes);
 app.use('/api/orders', orderRoutes);
+
 
 // 404 handler
 app.use(notFound);
