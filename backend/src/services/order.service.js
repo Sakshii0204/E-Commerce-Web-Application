@@ -6,8 +6,21 @@ import { AppError } from '../utils/AppError.js';
 import { generateOrderNumber } from '../utils/orderNumber.js';
 import { calculateShipping } from '../utils/pricing.js';
 
+import { User } from '../models/User.js';
+
+const VALID_TRANSITIONS = {
+  PLACED: ['PROCESSING', 'CANCELLED'],
+  PROCESSING: ['SHIPPED', 'CANCELLED'],
+  SHIPPED: ['DELIVERED'],
+  DELIVERED: [],
+  CANCELLED: [],
+};
+
+const safeRegex = (str) => new RegExp(str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+
 class OrderService {
   async createOrder(userId, { shippingAddress, paymentMethod = 'COD' }) {
+
     // 1. Retrieve user's cart
     const cart = await cartRepository.findByUserId(userId);
     if (!cart || cart.items.length === 0) {
@@ -189,6 +202,129 @@ class OrderService {
     }
     return order;
   }
+
+  async getAdminOrders({ page = 1, limit = 10, status = 'ALL', search = '', sort = 'newest' }) {
+    const filter = {};
+
+    if (status && status !== 'ALL') {
+      filter.orderStatus = status;
+    }
+
+    if (search && search.trim()) {
+      const queryRegex = safeRegex(search.trim());
+      // Search matching users by name or email
+      const matchedUsers = await User.find({
+        $or: [{ name: queryRegex }, { email: queryRegex }],
+      }).select('_id');
+      const matchedUserIds = matchedUsers.map((u) => u._id);
+
+      filter.$or = [
+        { orderNumber: queryRegex },
+        { user: { $in: matchedUserIds } },
+        { 'shippingAddress.fullName': queryRegex },
+      ];
+    }
+
+    let sortOptions = { createdAt: -1 };
+    if (sort === 'oldest') sortOptions = { createdAt: 1 };
+    if (sort === 'highest_amount') sortOptions = { totalAmount: -1 };
+    if (sort === 'lowest_amount') sortOptions = { totalAmount: 1 };
+
+    const skip = (page - 1) * limit;
+
+    const [orders, total] = await Promise.all([
+      orderRepository.findAdminOrders({ filter, skip, limit, sort: sortOptions }),
+      orderRepository.countAdminOrders(filter),
+    ]);
+
+    return {
+      orders,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit) || 1,
+      },
+    };
+  }
+
+  async getAdminOrderById(orderId) {
+    const order = await orderRepository.findAdminById(orderId);
+    if (!order) {
+      throw new AppError('Order not found', 404);
+    }
+    return order;
+  }
+
+  async updateOrderStatus(orderId, nextStatus) {
+    const order = await orderRepository.findAdminById(orderId);
+    if (!order) {
+      throw new AppError('Order not found', 404);
+    }
+
+    const currentStatus = order.orderStatus;
+    const allowedTransitions = VALID_TRANSITIONS[currentStatus] || [];
+
+    if (!allowedTransitions.includes(nextStatus)) {
+      throw new AppError(
+        `Invalid status transition from "${currentStatus}" to "${nextStatus}".`,
+        400
+      );
+    }
+
+    const updateFields = {
+      orderStatus: nextStatus,
+    };
+
+    if (nextStatus === 'PROCESSING') {
+      updateFields.processedAt = new Date();
+    } else if (nextStatus === 'SHIPPED') {
+      updateFields.shippedAt = new Date();
+    } else if (nextStatus === 'DELIVERED') {
+      updateFields.deliveredAt = new Date();
+      updateFields.paymentStatus = 'PAID';
+    } else if (nextStatus === 'CANCELLED') {
+      if (order.stockRestored) {
+        throw new AppError('Inventory has already been restored for this order.', 400);
+      }
+
+      // Restore product stock for each ordered item
+      for (const item of order.items) {
+        await Product.findByIdAndUpdate(item.product, {
+          $inc: { stock: item.quantity },
+        });
+      }
+
+      updateFields.cancelledAt = new Date();
+      updateFields.stockRestored = true;
+    }
+
+    const updatedOrder = await orderRepository.updateOrder(order._id, updateFields);
+    return updatedOrder;
+  }
+
+  async getDashboardStats() {
+    const [totalProducts, lowStockProducts, outOfStockProducts, orderStats] = await Promise.all([
+      Product.countDocuments({ isActive: true }),
+      Product.countDocuments({ isActive: true, stock: { $gt: 0, $lte: 5 } }),
+      Product.countDocuments({ isActive: true, stock: 0 }),
+      orderRepository.getOrderStatistics(),
+    ]);
+
+    return {
+      products: {
+        total: totalProducts,
+        lowStock: lowStockProducts,
+        outOfStock: outOfStockProducts,
+      },
+      orders: {
+        total: orderStats.totalOrders,
+        byStatus: orderStats.statusCounts,
+        deliveredRevenue: orderStats.deliveredRevenue,
+      },
+    };
+  }
 }
 
 export const orderService = new OrderService();
+

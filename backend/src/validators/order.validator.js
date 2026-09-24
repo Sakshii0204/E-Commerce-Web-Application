@@ -45,3 +45,38 @@ export const orderIdParamSchema = z.object({
     id: z.string({ required_error: 'Order ID is required' }).trim(),
   }),
 });
+
+export const adminOrderQuerySchema = z.object({
+  query: z.object({
+    page: z
+      .string()
+      .optional()
+      .transform((val) => (val ? Math.max(1, parseInt(val, 10) || 1) : 1)),
+    limit: z
+      .string()
+      .optional()
+      .transform((val) => (val ? Math.min(50, Math.max(1, parseInt(val, 10) || 10)) : 10)),
+    status: z
+      .enum(['ALL', 'PLACED', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'CANCELLED'])
+      .optional()
+      .default('ALL'),
+    search: z.string().optional(),
+    sort: z
+      .enum(['newest', 'oldest', 'highest_amount', 'lowest_amount'])
+      .optional()
+      .default('newest'),
+  }),
+});
+
+export const updateOrderStatusSchema = z.object({
+  params: z.object({
+    id: z.string({ required_error: 'Order ID is required' }).trim(),
+  }),
+  body: z.object({
+    status: z.enum(['PROCESSING', 'SHIPPED', 'DELIVERED', 'CANCELLED'], {
+      required_error: 'Status is required',
+      invalid_type_error: 'Status must be one of: PROCESSING, SHIPPED, DELIVERED, CANCELLED',
+    }),
+  }),
+});
+

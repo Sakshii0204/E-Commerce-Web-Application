@@ -120,6 +120,22 @@ const orderSchema = new mongoose.Schema(
       default: 'PLACED',
       required: true,
     },
+    stockRestored: {
+      type: Boolean,
+      default: false,
+    },
+    processedAt: {
+      type: Date,
+    },
+    shippedAt: {
+      type: Date,
+    },
+    deliveredAt: {
+      type: Date,
+    },
+    cancelledAt: {
+      type: Date,
+    },
   },
   {
     timestamps: true,
