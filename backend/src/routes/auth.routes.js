@@ -4,12 +4,13 @@ import { validateBody } from '../middleware/validate.middleware.js';
 import { registerSchema, loginSchema } from '../validators/auth.validator.js';
 import { authenticate } from '../middleware/auth.middleware.js';
 import { authorize } from '../middleware/authorize.middleware.js';
+import { authRateLimiter } from '../middleware/rateLimiter.middleware.js';
 
 const router = Router();
 
-// Public routes
-router.post('/register', validateBody(registerSchema), authController.register);
-router.post('/login', validateBody(loginSchema), authController.login);
+// Public routes with rate limiting
+router.post('/register', authRateLimiter(), validateBody(registerSchema), authController.register);
+router.post('/login', authRateLimiter(), validateBody(loginSchema), authController.login);
 router.post('/logout', authController.logout);
 
 // Protected routes

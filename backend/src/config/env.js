@@ -10,12 +10,17 @@ dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
 const requiredEnvVars = ['JWT_SECRET'];
 
+if (process.env.NODE_ENV === 'production') {
+  requiredEnvVars.push('MONGODB_URI', 'CLIENT_URL');
+}
+
 for (const envVar of requiredEnvVars) {
   if (!process.env[envVar]) {
     console.error(`[FATAL] Missing required environment variable: ${envVar}`);
     process.exit(1);
   }
 }
+
 
 export const env = {
   NODE_ENV: process.env.NODE_ENV || 'development',
